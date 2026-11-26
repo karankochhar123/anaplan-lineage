@@ -2,6 +2,17 @@
 
 All notable changes to this project are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Nine architect checks in the Model profile:
+  - **DISCO structure:** inputs in calculation modules, calculations in data or input modules, and subsidiary views.
+  - **Formulas:** hard-coded list members, hard-coded numbers, repeated formulas and deeply nested IFs.
+  - **Performance:** costly functions and large Text line items, both on line items over 1 million cells.
+- Architect checks are ordered by severity.
+- With Anonymise on, findings that quote a formula are hidden.
+
 ## [1.0.0] - 2026-11-27
 
 First release.

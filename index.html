@@ -463,6 +463,117 @@ function parseFiles(files,onProgress){
   return {items,modules,mods,edges:res.edges,source:res.source};
 }
 
+/* ---------- DISCO layer from module name prefixes (DAT, INP, SYS, CAL, OUT…) ---------- */
+const PREFIX_LAYER={SYS:'System',MAP:'System',ADM:'System',DAT:'Data',STG:'Data',STAG:'Data',IMP:'Data',INP:'Input',CAL:'Calculation',CALC:'Calculation',OUT:'Output',REP:'Output',EXP:'Output',DSH:'Output'};
+function layerOf(name){
+  const m=String(name).match(/(?:^|[\s\d._\-])(SYS|DAT|INP|CALC|CAL|OUT|REP|EXP|MAP|STAG|STG|IMP|DSH|ADM)[A-Z0-9]{0,3}(?=[\s\d._\-:]|$)/);
+  if(m) return PREFIX_LAYER[m[1]];
+  const n=String(name);
+  if(/\bstag/i.test(n)) return 'Data'; if(/\bcalc/i.test(n)) return 'Calculation';
+  if(/\b(report|output|export|dashboard)/i.test(n)) return 'Output'; if(/\b(input|assumption)/i.test(n)) return 'Input';
+  if(/\b(system|mapping|properties|settings|calendar|filter|access|time)\b/i.test(n)) return 'System';
+  return 'Other';
+}
+
+/* ---------- Architect checks: line items in, findings out ----------
+   Each finding row is {it, detail, sensitive}. A sensitive detail quotes formula text or names,
+   so the page hides it while Anonymise is on. Thresholds are the ones agreed for v1.1. */
+const LARGE_CELLS=1e6;                      /* "large" line item for the performance checks */
+const HARDCODE_OK=new Set([0,1,100]);       /* numbers not worth flagging (-1 is "-" then 1) */
+const OFFSET_FNS=new Set(['LAG','OFFSET','MOVINGSUM','ROUND','LEFT','RIGHT','MID']); /* their numeric arguments are positions or lengths */
+const COSTLY_FNS=['FINDITEM','RANK','RANKCUMULATE','ISFIRSTOCCURRENCE','TEXTLIST','POST','LEFT','RIGHT','MID','FIND','SUBSTITUTE','TEXT'];
+const MAX_IFS=4, MIN_REPEAT_LEN=20;
+const shortNum=n=>n>=1e9?(n/1e9).toFixed(1)+'B':n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'k':String(Math.round(n));
+
+/* blank out quoted text but keep its length, so positions still line up: '"' strings always, quoted names too when names=true */
+function blankQuoted(f,names){
+  let out='',dq=false,sq=false;
+  for(const c of String(f||'')){
+    if(c==='"'&&!sq){ dq=!dq; out+=c; continue; }
+    if(names&&c==="'"&&!dq){ sq=!sq; out+=c; continue; }
+    out+=(dq||sq)?' ':c;
+  }
+  return out;
+}
+/* the token next to position i, skipping spaces: a single operator character, a whole word, or '' at either end */
+function tokenNear(s,i,dir){
+  let k=dir<0?i-1:i; while(k>=0&&k<s.length&&/\s/.test(s[k])) k+=dir;
+  if(k<0||k>=s.length) return '';
+  if(!/[A-Za-z_]/.test(s[k])) return s[k];
+  let a=k,b=k; while(a>0&&/[A-Za-z_]/.test(s[a-1])) a--; while(b<s.length-1&&/[A-Za-z_]/.test(s[b+1])) b++;
+  return s.slice(a,b+1);
+}
+const isBoundary=t=>t===''||(t.length===1&&OPS.indexOf(t)>=0)||KW.has(t.toLowerCase());
+/* numbers that stand alone between operators or keywords (so the 2 in an unquoted name like "Item 2" is ignored) */
+function hardCodedNumbers(formula){
+  const s=blankQuoted(formula,true), out=[], stack=[];
+  for(let i=0;i<s.length;i++){
+    const c=s[i];
+    if(c==='('){ const w=s.slice(0,i).match(/([A-Za-z_]+)\s*$/); stack.push(w?w[1].toUpperCase():''); continue; }
+    if(c===')'){ stack.pop(); continue; }
+    if(c>='0'&&c<='9'&&!/[\w.]/.test(s[i-1]||'')){
+      const n=s.slice(i).match(/^\d+(?:\.\d+)?/)[0], j=i+n.length;
+      if(!/[\w.]/.test(s[j]||'')&&isBoundary(tokenNear(s,i,-1))&&isBoundary(tokenNear(s,j,1))&&!HARDCODE_OK.has(+n)&&!OFFSET_FNS.has(stack[stack.length-1])) out.push(n);
+      i=j-1;
+    }
+  }
+  return out;
+}
+/* [SELECT: List.Item], and ITEM(List) = List.Item (either way round) where the other side is not a line item.
+   VERIFY: comparing ITEM() with a list-formatted line item is the recommended pattern, so it is not flagged. */
+function hardCodedMembers(formula,own,byName){
+  const s=blankQuoted(formula,false), out=[]; let m;
+  const sel=/\[\s*SELECT\s*:\s*([^\]]+)\]/gi; while((m=sel.exec(s))) out.push('SELECT: '+m[1].trim());
+  const side=t=>{ t=t.trim(); return t&&t.indexOf('.')>0&&!lookup(t,own,byName)?t:''; };
+  const fwd=/ITEM\s*\([^()]*\)\s*(=|<>)\s*/gi;
+  while((m=fwd.exec(s))){ const rest=s.slice(m.index+m[0].length).match(/^(.*?)(?=\s+(?:THEN|AND|OR|ELSE)\b|[),\]]|$)/i); const t=side(rest?rest[1]:''); if(t) out.push('ITEM(…) '+m[1]+' '+t); }
+  const back=/(=|<>)\s*ITEM\s*\(/gi;
+  while((m=back.exec(s))){ const before=s.slice(0,m.index).match(/(?:^|[(,&+*\/]|\b(?:IF|THEN|ELSE|AND|OR|NOT)\b)\s*([^(),&+*\/=<>]*)$/i); const t=side(before?before[1]:''); if(t) out.push(t+' '+m[1]+' ITEM(…)'); }
+  return out;
+}
+function architectChecks(model){
+  const {items,byName,edges}=model;
+  const modOf=it=>byName.get(norm(it.module));
+  const layer=it=>{ const m=modOf(it); return m?(m.layer||layerOf(m.name)):layerOf(it.module); };
+  const ins=new Map(); for(const [s,t] of edges){ if(!ins.has(t)) ins.set(t,[]); ins.get(t).push(s); }
+  const check=(t,sev,help)=>({t,sev,help,rows:[]});
+  const inCal=check('Inputs in calculation modules','med','Line items with no formula in Calculation modules. In DISCO, data and inputs belong in Data or Input modules, so calculation modules stay pure formulas.');
+  const calcIn=check('Calculations in data or input modules','low','Line items with a formula in Data or Input modules. Simple flags can be fine, but most logic belongs in Calculation modules.');
+  const sub=check('Subsidiary views','low',"Line items whose Applies To or time scale differs from their module's. Some are intended; many are better as their own module. Needs the module rows in the export.");
+  const nums=check('Hard-coded numbers in formulas','low','Numbers typed into formulas (other than 0, 1 and 100, and positions or lengths in functions such as LAG, OFFSET and LEFT). Consider an assumption line item that users can see and change.');
+  const members=check('Hard-coded list members','med','Formulas that name a specific list item, through SELECT or ITEM(…) = List.Item. They break when the list changes. Consider a Boolean or list-formatted line item in a system module instead.');
+  const repeat=check('Repeated formulas','low','The same formula on the same inputs in more than one line item. Calculating it once and referencing the result is easier to maintain and often cheaper.');
+  const ifs=check('Deeply nested IFs',"low",`Formulas with ${MAX_IFS} or more IFs. Consider splitting them into steps, or a lookup from a mapping module.`);
+  const costly=check('Costly functions on large line items','med',`Functions such as FINDITEM, RANK, ISFIRSTOCCURRENCE, POST and text functions (including &) on line items over ${shortNum(LARGE_CELLS)} cells. Check whether they can run on a smaller line item and be referenced.`);
+  const bigText=check('Large Text line items','med',`Text line items over ${shortNum(LARGE_CELLS)} cells. Text takes much more memory than numbers, Booleans or list formats.`);
+  const groups=new Map();
+  for(const it of items){
+    const p=it.p||{}, f=it.formula||'', lay=layer(it), m=modOf(it), md=m&&m.meta||{};
+    if(lay==='Calculation'&&!f&&p.fmtType!=='No data'&&!/^heading/i.test(p.style||'')) inCal.rows.push({it,detail:'no formula'});
+    if((lay==='Data'||lay==='Input')&&f) calcIn.rows.push({it,detail:lay});
+    if(md.name){ /* VERIFY: an empty Applies To or Time Scale on a line item means it follows the module */
+      const mine=splitList(it.appliesTo).map(norm).sort().join('|'), theirs=splitList(md.appliesTo).map(norm).sort().join('|');
+      if(mine&&mine!==theirs) sub.rows.push({it,detail:'Applies To differs from the module'});
+      else if(p.ts&&md.ts&&norm(p.ts)!==norm(md.ts)) sub.rows.push({it,detail:`time scale ${p.ts} (module ${md.ts})`});
+    }
+    if(!f) continue;
+    const n=hardCodedNumbers(f); if(n.length) nums.rows.push({it,detail:[...new Set(n)].join(', '),sensitive:true});
+    const hm=hardCodedMembers(f,m,byName); if(hm.length) members.rows.push({it,detail:hm.join('; '),sensitive:true});
+    const plain=blankQuoted(f,true);
+    const nIf=(plain.match(/\bIF\b/gi)||[]).length; if(nIf>=MAX_IFS) ifs.rows.push({it,detail:nIf+' IFs'});
+    if(f.length>=MIN_REPEAT_LEN&&/[-+*\/&<>=(\[]/.test(plain)){ /* logic, not a plain reference */
+      const k=f.replace(/\s+/g,' ').trim().toLowerCase()+'|'+(ins.get(it.idx)||[]).slice().sort((a,b)=>a-b).join(',');
+      if(!groups.has(k)) groups.set(k,[]); groups.get(k).push(it); }
+    if((p.cells||0)>LARGE_CELLS){
+      const fns=COSTLY_FNS.filter(fn=>new RegExp('\\b'+fn+'\\s*\\(','i').test(plain)); if(plain.indexOf('&')>=0) fns.push('&');
+      if(fns.length) costly.rows.push({it,detail:fns.join(', ')+' · '+shortNum(p.cells)+' cells'});
+    }
+  }
+  for(const it of items){ const p=it.p||{}; if(p.fmtType==='Text'&&(p.cells||0)>LARGE_CELLS) bigText.rows.push({it,detail:shortNum(p.cells)+' cells'}); }
+  groups.forEach(g=>{ if(g.length>1) for(const it of g) repeat.rows.push({it,detail:`same as ${g.length-1} other line item${g.length===2?'':'s'}`}); });
+  return [members,costly,bigText,inCal,calcIn,sub,repeat,nums,ifs];
+}
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js" integrity="sha384-IWROdLKRsN1UuJywMlWl7/blXQ8GEooN2n7dzTxfEPd7ybYIKCUJ2Ol/1Gpf3YV4" crossorigin="anonymous"></script>
 <script>
@@ -481,16 +592,6 @@ const LAYERS=['Data','Input','System','Calculation','Output','Other'];
 const LAYER_COLOR={Data:'#2fd3a7',Input:'#6c8cff',System:'#8b95ad',Calculation:'#ff7a59',Output:'#ff5fa2',Other:'#b38cff'};
 const LAYER_RANK={Data:0,Input:0,System:0,Calculation:1,Output:2};
 const SECTION_COLORS=['#6c8cff','#2fd3a7','#ff7a59','#ff5fa2','#f5b942','#b38cff','#4fc3f7','#9ccc65','#e57373','#a1887f','#90a4ae','#ffb74d'];
-const PREFIX_LAYER={SYS:'System',MAP:'System',ADM:'System',DAT:'Data',STG:'Data',STAG:'Data',IMP:'Data',INP:'Input',CAL:'Calculation',CALC:'Calculation',OUT:'Output',REP:'Output',EXP:'Output',DSH:'Output'};
-function layerOf(name){
-  const m=String(name).match(/(?:^|[\s\d._\-])(SYS|DAT|INP|CALC|CAL|OUT|REP|EXP|MAP|STAG|STG|IMP|DSH|ADM)[A-Z0-9]{0,3}(?=[\s\d._\-:]|$)/);
-  if(m) return PREFIX_LAYER[m[1]];
-  const n=String(name);
-  if(/\bstag/i.test(n)) return 'Data'; if(/\bcalc/i.test(n)) return 'Calculation';
-  if(/\b(report|output|export|dashboard)/i.test(n)) return 'Output'; if(/\b(input|assumption)/i.test(n)) return 'Input';
-  if(/\b(system|mapping|properties|settings|calendar|filter|access|time)\b/i.test(n)) return 'System';
-  return 'Other';
-}
 const isDividerName=n=>/^\s*[-*=_#~]{2,}/.test(n)||/[-*=_#~]{3,}\s*$/.test(n);
 const tidySection=n=>{ const t=n.replace(/[-*=_#~]+/g,' ').replace(/\s+/g,' ').trim(); return t?t.charAt(0).toUpperCase()+t.slice(1).toLowerCase():'Unnamed section'; };
 
@@ -629,7 +730,7 @@ function hydrate(res){
     if(!m.meta.cells){ let c=0; m.items.forEach(it=>c+=(it.p&&it.p.cells)||0); m.cellsCalc=c; }
   }
   const modList=ordered.filter(m=>!m.divider);
-  S.g={items,mods,byName,modList,edgeCount:edges.length,dcaCount:dca.size,dca,modOut,modIn,source,sections:[...sections.values()],
+  S.g={items,mods,byName,edges,modList,edgeCount:edges.length,dcaCount:dca.size,dca,modOut,modIn,source,sections:[...sections.values()],
        secName:new Map([...sections.values()].map(s=>[s.key,s.name])),hasSections:hasDiv&&modules.length>0,
        hasMeta:items.some(i=>i.p&&(i.p.fmtType||i.p.sum))};
   S.byId=new Map(items.map(i=>[i.id,i]));
@@ -1171,6 +1272,9 @@ function renderProfile(){
   checks.push({t:'Very long formulas (300+ characters)',sev:'low',help:'Long formulas are harder to audit and often hide repeated logic. Consider splitting them into steps.',rows:longF.map(i=>({go:i.id,l:itemLabel(i),r:fmt(i.formula.length)+' chars · '+modLabel(mod(i.mk))}))});
   const empty=g.modList.filter(m=>m.size===0);
   checks.push({t:'Empty modules',sev:'low',help:'Modules with no line items (dividers are excluded).',rows:empty.map(m=>({go:'m:'+m.key,l:modLabel(m),r:m.layer}))});
+  if(!g.checks) g.checks=architectChecks({items:g.items,byName:g.byName,edges:g.edges}); /* names are resolved at display time, so this survives Anonymise */
+  for(const c of g.checks) checks.push({t:c.t,sev:c.sev,help:c.help,rows:c.rows.map(r=>({go:r.it.id,l:itemLabel(r.it),r:modLabel(mod(r.it.mk))+(r.detail?' · '+(r.sensitive&&isAnon()?'•••':r.detail):'')}))});
+  const sevRank={high:0,med:1,low:2,info:3}; checks.sort((a,b)=>sevRank[a.sev]-sevRank[b.sev]);
   const sevName={high:'High',med:'Medium',low:'Low',info:'Info'};
   el.innerHTML=`<div class="stats"><div class="stat"><b>${fmt(g.modList.length)}</b><span>Modules</span></div><div class="stat"><b>${fmt(items.length)}</b><span>Line items</span></div><div class="stat"><b>${fmt(formulas)}</b><span>Formulas</span></div><div class="stat"><b>${cells?short(cells):fmt(g.edgeCount)}</b><span>${cells?'Cells':'References'}</span></div></div>
    <p class="note" style="margin-top:-4px">Lineage source: ${g.source==='rb'?"Anaplan's <b>Referenced By</b> column":g.source==='mixed'?"Anaplan's <b>Referenced By</b> column for files that have it, formula parsing for the others":'formula parsing (export has no Referenced By column)'}${g.dcaCount?`, plus ${fmt(g.dcaCount)} access-driver (DCA) links`:''}.</p>

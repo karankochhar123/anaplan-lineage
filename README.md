@@ -38,12 +38,12 @@ The app uses a light theme close to Anaplan's own interface by default, with a n
 
 - **Every card shows** format, summary method and time scale. The side panel lists all properties: format details, summary and time summary, time scale and range, versions, Applies To, cell count, calculation effort, parent, style, code, data tags and access drivers (DCA).
 - **Colour by** format, summary method, time scale, versions, calculation effort, cell count or formula length. Click a legend entry to show only that value.
-- **Model profile** gives breakdowns plus architect checks:
-  - flows against DISCO
-  - non-numeric line items with a summary method
-  - Boolean summaries and Formula summaries
-  - the highest calculation effort and largest cell counts
-  - unreferenced line items, very long formulas and empty modules
+- **Model profile** gives breakdowns plus architect checks, ordered by severity. Click any finding to open its lineage.
+  - **DISCO structure:** flows against DISCO, inputs in calculation modules, calculations in data or input modules, and subsidiary views (line items whose Applies To or time scale differs from their module's).
+  - **Formulas:** hard-coded list members (`SELECT:` or `ITEM(…) = List.Item`), hard-coded numbers, the same formula repeated on the same inputs, deeply nested IFs (4 or more) and very long formulas.
+  - **Performance:** costly functions (FINDITEM, RANK, ISFIRSTOCCURRENCE, POST, text functions) and Text format on line items over 1 million cells, Formula summaries, and the highest calculation effort and largest cell counts.
+  - **Tidying:** non-numeric and Boolean line items with a summary method, unreferenced line items and empty modules.
+  - With **Anonymise** on, findings that quote a formula show `•••` instead.
 - **Rankings** list the most referenced line items, cross-module use, downstream impact, calculation effort, cell count and more, and copy as CSV.
 
 ## Grouping
