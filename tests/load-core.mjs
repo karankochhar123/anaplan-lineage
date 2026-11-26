@@ -8,6 +8,6 @@ const match = html.match(/<script id="core">([\s\S]*?)<\/script>/);
 if (!match) throw new Error('index.html has no <script id="core"> block');
 
 export const core = vm.runInThisContext(
-  `(function () {\n${match[1]}\nreturn { norm, parseCSV, decodeFormat, decodeSummary, rowsToItems, tokenize, parseFiles };\n})()`,
+  `(function () {\n${match[1]}\nreturn { norm, parseCSV, decodeFormat, decodeSummary, rowsToItems, tokenize, parseFiles, layerOf, architectChecks, hardCodedNumbers, hardCodedMembers, LARGE_CELLS };\n})()`,
   { filename: 'index.html#core' },
 );
