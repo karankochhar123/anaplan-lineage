@@ -119,6 +119,7 @@ pre.formula{background:#0b1020;border:1px solid var(--line);border-radius:8px;pa
  <select id="depth" title="How many steps up and downstream to trace">
   <option value="99">Trace: full chain</option><option value="1">Trace: 1 hop</option><option value="2">Trace: 2 hops</option><option value="3">Trace: 3 hops</option>
  </select>
+ <select id="linkStyle" title="How links between nodes are drawn"><option value="subtle">Links: subtle</option><option value="bold">Links: bold</option><option value="hidden">Links: on trace</option></select>
  <label class="chk"><input type="checkbox" id="isolate">Isolate</label>
  <label class="chk"><input type="checkbox" id="heat">Heat map</label>
  <label class="chk"><input type="checkbox" id="lists">Lists</label>
@@ -351,24 +352,38 @@ const nextFrame=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
 
 /* ---------- Cytoscape instance (recreated per view so big views get cheaper renderer settings) ---------- */
 let cy=null;
+/* Link appearance: 'subtle' (default), 'bold', or 'hidden' (only traced links show) */
+function edgeStyles(big){
+  const mode=$('linkStyle').value;
+  const base={'line-color':'#3a4668','target-arrow-color':'#3a4668','target-arrow-shape':'triangle','curve-style':big?'straight':'bezier'};
+  const looks={
+    subtle:{width:'data(thin)','opacity':big?.16:.32,'arrow-scale':.55},
+    bold:{width:'data(width)','opacity':.75,'arrow-scale':.8,'line-color':'#46557d','target-arrow-color':'#46557d'},
+    hidden:{width:'data(thin)','opacity':0,'arrow-scale':.55}
+  };
+  return [
+    {selector:'edge',style:Object.assign(base,looks[mode])},
+    {selector:'edge[kind="list"]',style:{'line-style':'dotted','opacity':mode==='hidden'?0:(mode==='bold'?.5:.2)}}
+  ];
+}
 function styleFor(big){return [
  {selector:'node',style:{'background-color':'data(fill)','label':'data(label)','color':'#e7ebf5','font-size':10,'text-valign':'bottom','text-margin-y':4,'width':'data(size)','height':'data(size)','text-outline-color':'#0d1220','text-outline-width':2,'min-zoomed-font-size':big?9:6,'text-wrap':'ellipsis','text-max-width':140,'border-width':0}},
  {selector:'node[kind="list"]',style:{'shape':'round-rectangle','color':'#9aa4bd','font-style':'italic'}},
  {selector:'node[kind="module"]',style:{'font-size':11,'font-weight':600}},
- {selector:'edge',style:{'width':'data(width)','line-color':'#34405e','target-arrow-color':'#34405e','target-arrow-shape':'triangle','arrow-scale':.8,'curve-style':big?'straight':'bezier','opacity':.75}},
- {selector:'edge[kind="list"]',style:{'line-style':'dotted','line-color':'#2b3550','target-arrow-color':'#2b3550'}},
- {selector:'.faded',style:{'opacity':.08}},
+ ...edgeStyles(big),
+ {selector:'node.faded',style:{'opacity':.12}},
+ {selector:'edge.faded',style:{'opacity':.03}},
  {selector:'.hidden',style:{'display':'none'}},
  {selector:'node.sel',style:{'border-width':4,'border-color':'#ffffff','z-index':10}},
  {selector:'node.up',style:{'border-width':3,'border-color':'#f5b942'}},
  {selector:'node.dn',style:{'border-width':3,'border-color':'#2fd3a7'}},
- {selector:'edge.eup',style:{'line-color':'#f5b942','target-arrow-color':'#f5b942','width':big?1.6:3,'opacity':1,'line-style':'dashed','line-dash-pattern':[7,5],'z-index':9}},
- {selector:'edge.edn',style:{'line-color':'#2fd3a7','target-arrow-color':'#2fd3a7','width':big?1.6:3,'opacity':1,'line-style':'dashed','line-dash-pattern':[7,5],'z-index':9}},
+ {selector:'edge.eup',style:{'line-color':'#f5b942','target-arrow-color':'#f5b942','width':big?1:2.2,'opacity':big?.5:.95,'arrow-scale':big?.5:.7,'line-style':big?'solid':'dashed','line-dash-pattern':[6,6],'z-index':9}},
+ {selector:'edge.edn',style:{'line-color':'#2fd3a7','target-arrow-color':'#2fd3a7','width':big?1:2.2,'opacity':big?.5:.95,'arrow-scale':big?.5:.7,'line-style':big?'solid':'dashed','line-dash-pattern':[6,6],'z-index':9}},
  {selector:'node.hit',style:{'border-width':4,'border-color':'#6c8cff'}}
 ];}
 function makeCy(els){
   stopPulse(); if(cy) cy.destroy();
-  const nodes=els.filter(e=>!e.data.source).length, edges=els.length-nodes, big=nodes>500||edges>1500;
+  const nodes=els.filter(e=>!e.data.source).length, edges=els.length-nodes, big=nodes>500||edges>1500; S.big=big;
   cy=cytoscape({container:$('cy'),elements:els,style:styleFor(big),minZoom:.03,maxZoom:3,
     textureOnViewport:big,hideEdgesOnViewport:big,motionBlur:false,pixelRatio:big?1:'auto',boxSelectionEnabled:false});
   cy.on('tap','node',e=>onTap(e.target));
@@ -496,9 +511,9 @@ function elements(){
     let links=[]; g.modOut.forEach((targets,a)=>targets.forEach((w,b)=>links.push([a,b,w])));
     S.linkNote=null;
     if(!S.showAllLinks&&links.length>MOD_EDGE_MAX){ S.linkNote={total:links.length}; links.sort((x,y)=>y[2]-x[2]); links=links.slice(0,MOD_EDGE_MAX); }
-    for(const [a,b,w] of links) els.push({data:{id:'e:'+a+'>'+b,source:'m:'+a,target:'m:'+b,w,width:Math.min(7,1.2+Math.log2(w+1)*1.3)}});
+    for(const [a,b,w] of links) els.push({data:{id:'e:'+a+'>'+b,source:'m:'+a,target:'m:'+b,w,width:Math.min(7,1.2+Math.log2(w+1)*1.3),thin:Math.min(3,.7+Math.log2(w+1)*.45)}});
     if(showLists){ allLists().forEach(l=>els.push({data:{id:'l:'+l,kind:'list',label:listLabel(l),fill:PALETTE.LIST,size:16}}));
-      g.mods.forEach(m=>m.lists.forEach(l=>els.push({data:{id:'le:'+l+'>'+m.key,source:'l:'+l,target:'m:'+m.key,kind:'list',width:1}}))); }
+      g.mods.forEach(m=>m.lists.forEach(l=>els.push({data:{id:'le:'+l+'>'+m.key,source:'l:'+l,target:'m:'+m.key,kind:'list',width:1,thin:.7}}))); }
     return els;
   }
   const view=lineView(); let set=null;
@@ -512,8 +527,8 @@ function elements(){
     set=[c,...[...tr.up].map(id=>S.byId.get(id)),...[...tr.dn].map(id=>S.byId.get(id))]; }
   const ids=new Set(set.map(i=>i.id)), maxL=maxOf(set,i=>i.formula.length);
   for(const it of set) els.push(itemNode(it,heat,maxL));
-  for(const it of set) for(const o of it.outs) if(ids.has(o.id)) els.push({data:{id:it.id+'>'+o.id,source:it.id,target:o.id,width:1.3}});
-  if(showLists){ const used=new Set(); for(const it of set) for(const l of it.lists){ if(!used.has(l)){used.add(l);els.push({data:{id:'l:'+l,kind:'list',label:listLabel(l),fill:PALETTE.LIST,size:14}});} els.push({data:{id:'le:'+l+'>'+it.id,source:'l:'+l,target:it.id,kind:'list',width:.8}}); } }
+  for(const it of set) for(const o of it.outs) if(ids.has(o.id)) els.push({data:{id:it.id+'>'+o.id,source:it.id,target:o.id,width:1.3,thin:.8}});
+  if(showLists){ const used=new Set(); for(const it of set) for(const l of it.lists){ if(!used.has(l)){used.add(l);els.push({data:{id:'l:'+l,kind:'list',label:listLabel(l),fill:PALETTE.LIST,size:14}});} els.push({data:{id:'le:'+l+'>'+it.id,source:'l:'+l,target:it.id,kind:'list',width:.8,thin:.6}}); } }
   return els;
 }
 
@@ -734,6 +749,7 @@ function pick(x){ $('results').style.display='none'; $('search').value=x.label; 
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{ if(!S.g) return; S.mode=b.dataset.v; S.moduleFilter=null; S.focus=null; S.sel=null; S.history=[]; setSeg('modeSeg',S.mode); render(); showDetails(null); });
 document.querySelectorAll('#layoutSeg button').forEach(b=>b.onclick=()=>{ S.layout=b.dataset.v; setSeg('layoutSeg',S.layout); if(S.g&&cy) runLayout(); });
 $('depth').onchange=()=>{ if(!S.g) return; if(S.mode==='line'&&S.focus) render(); else if(S.sel){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
+$('linkStyle').onchange=()=>{ if(cy){ cy.style(styleFor(S.big)); } };
 $('isolate').onchange=()=>{ if(S.sel&&!S.focus){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
 ['heat','lists'].forEach(id=>$(id).onchange=()=>{ if(S.g) render(); });
 $('anon').onchange=()=>{ if(!S.g) return; buildSearch(); render(); renderHealth(); renderInsights(); if(!S.sel&&!S.focus) showDetails(null); };
