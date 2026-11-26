@@ -129,6 +129,48 @@ details.cg .ci span:last-child{white-space:nowrap}
 #modal .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;max-width:900px;width:100%;max-height:90vh;overflow:auto}
 #modal img{width:100%;border-radius:8px;background:#0d1220;margin:10px 0}
 .err{color:#ff8a8a;font-size:13px}
+/* ---- Blueprint sheet (Anaplan-style light grid) ---- */
+#sheet{position:absolute;inset:0;overflow:auto;background:#eef1f5;color:#1f2a37;display:none;font-family:"Open Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.sh-wrap{position:relative;padding:36px 44px 80px;width:max-content;min-width:100%}
+.sh-row{display:flex;align-items:flex-start;gap:150px;position:relative;z-index:1}
+.sh-side{position:relative;width:236px;flex:none}
+.sh-side h4,.sh-colh{margin:0 0 10px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#64748b;font-weight:600}
+.sh-card{position:absolute;left:0;right:0;background:#fff;border:1px solid #d3dae3;border-left:4px solid var(--c);border-radius:3px;padding:5px 9px;font-size:12px;cursor:pointer;box-shadow:0 1px 2px rgba(16,24,40,.06)}
+.sh-card:hover,.sh-card.hot{border-color:#2f6fd6;box-shadow:0 0 0 2px rgba(47,111,214,.18)}
+.sh-card b{display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1f2a37}
+.sh-card span{color:#64748b;font-size:11.5px}
+.sh-mod{background:#fff;border:1px solid #cdd5df;border-radius:3px;box-shadow:0 1px 3px rgba(16,24,40,.08)}
+.sh-head{display:flex;gap:10px;align-items:center;padding:7px 12px;border-bottom:1px solid #cdd5df;background:#f6f8fa;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.sh-head i{width:10px;height:10px;border-radius:2px;flex:none}
+.sh-head small{font-weight:400;color:#64748b}
+.sh-head:hover span.nm{color:#2f6fd6;text-decoration:underline}
+table.bp{border-collapse:separate;border-spacing:0;font-size:12px;width:100%}
+table.bp th{position:sticky;top:0;z-index:2;background:#e8ecf1;color:#334155;font-weight:600;text-align:left;padding:5px 10px;border-bottom:1px solid #cdd5df;border-right:1px solid #d9dfe6;white-space:nowrap}
+table.bp td{padding:0 10px;height:27px;border-bottom:1px solid #e6eaef;border-right:1px solid #eef1f4;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;background:#fff}
+table.bp td.li{max-width:300px;color:#1f2a37}
+table.bp td.f{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#334155;max-width:360px}
+table.bp td.n{text-align:right;color:#64748b;font-variant-numeric:tabular-nums}
+table.bp td.x{padding:0 4px;width:34px;text-align:center}
+table.bp tr{cursor:pointer}
+table.bp tr:hover td{background:#eaf2fd}
+table.bp tr.hd td{background:#eef1f5;font-weight:700}
+table.bp tr.sm td.li{font-weight:600}
+table.bp tr.r-in td{background:#fff3d6} table.bp tr.r-out td{background:#ddf6ec}
+table.bp tr.r-sel td{background:#d6e6fb} table.bp tr.r-center td{background:#d6e6fb;font-weight:700}
+table.bp tr.dimrow td{color:#b6c0cc}
+.dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:0}
+.ext{display:inline-block;min-width:16px;padding:0 5px;border-radius:8px;font-size:11px;line-height:16px;text-align:center}
+.ext.u{background:#fff0cc;color:#8a5a00} .ext.d{background:#d4f3e6;color:#0b6b51} .ext.z{color:#c0c8d2}
+button.xp{font-size:11px;padding:1px 7px;border-radius:9px;background:#eef3fd;color:#2f6fd6;border:1px solid #b9cdf3;cursor:pointer}
+button.xp:hover{background:#dfe9fb}
+.sh-svg{position:absolute;left:0;top:0;pointer-events:none;z-index:3;overflow:visible}
+.ln{fill:none;stroke-width:1.3;opacity:.5} .ln.up{stroke:#d9960f} .ln.dn{stroke:#12a37c}
+.ln.hot{opacity:1;stroke-width:2.4} .ln.cold{opacity:.07}
+.sh-cols{display:flex;align-items:flex-start;gap:130px;position:relative;z-index:1}
+.sh-col{display:flex;flex-direction:column;gap:16px;width:430px;flex:none}
+.sh-col.c0{width:470px}
+.sh-note{font-size:12px;color:#64748b;margin:0 0 12px}
+
 @media (max-width:980px){
  main{grid-template-columns:1fr;height:auto;padding:0 12px 12px}
  #stage{height:70vh;min-height:440px}
@@ -176,6 +218,7 @@ details.cg .ci span:last-child{white-space:nowrap}
   <div id="nav"><div class="crumbs" id="crumbs"></div><div class="grp" id="navBtns"></div><div id="trail"></div></div>
   <div id="canvas">
    <div id="cy"></div>
+   <div id="sheet"></div>
    <div id="empty" class="overlay">
     <h2>See how your model really flows</h2>
     <p>Drop an Anaplan line item export here. It's read by this page only and never leaves your device.</p>
@@ -771,6 +814,123 @@ function buildLineage(){
   return els;
 }
 
+
+/* ================= Blueprint sheets (Anaplan-style grid) ================= */
+let SZ=1;
+function showSheet(on){ $('sheet').style.display=on?'block':'none'; $('cy').style.display=on?'none':'block'; if(on&&cy){ cy.destroy(); cy=null; } }
+function apFmt(p){ const t=p.fmtType, l=p.fmt||''; if(!t) return '';
+  if(t==='Time period'){ const m=l.match(/\(([^)]+)\)/); return 'Time Period'+(m?': '+m[1]:''); }
+  if(t==='No data') return 'No Data'; if(t==='List') return /^list\s*:/i.test(l)?l:'List'; if(t==='Number') return l.replace(/ · .*$/,'')||'Number'; return t; }
+function parentDepth(it,m){ let d=0,cur=it; while(cur.p&&cur.p.parent&&d<4){ const par=m.items.get(norm(cur.p.parent)); if(!par||par===cur) break; d++; cur=par; } return d; }
+function rowClass(it){ const st=(it.p&&it.p.style)||''; let c=/^heading/i.test(st)?'hd':(/^summary/i.test(st)||(it.p&&it.p.isSum==='true'))?'sm':'';
+  if(S.hl&&S.hlFilter&&!isHeat(S.hl)&&catOf(it,S.hl)!==S.hlFilter) c+=' dimrow'; return c; }
+function hlDot(it){ return S.hl?`<span class="dot" style="background:${itemColor(it)}"></span>`:''; }
+function rel(el,wrap){ const r=el.getBoundingClientRect(), w=wrap.getBoundingClientRect(); return {x:(r.left-w.left)/SZ,y:(r.top-w.top)/SZ,w:r.width/SZ,h:r.height/SZ}; }
+function curve(x1,y1,x2,y2){ const dx=Math.max(40,(x2-x1)*.5); return `M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}`; }
+function setZoom(z){ SZ=Math.max(.3,Math.min(1.6,z)); const w=$('sheet').querySelector('.sh-wrap'); if(w){ w.style.zoom=SZ; drawSheetLines(); } }
+let drawSheetLines=()=>{};
+window.addEventListener('resize',()=>drawSheetLines());
+
+/* ---- Level 3: one module as a blueprint, with neighbouring modules wired to the exact rows ---- */
+function renderModuleSheet(mk){
+  showSheet(true);
+  const m=mod(mk), items=[...m.items.values()].sort((a,b)=>a.idx-b.idx), idSet=new Set(items.map(i=>i.id)), md=m.meta||{};
+  const F=new Map(), C=new Map();
+  items.forEach(it=>{ it.ins.forEach(x=>{ if(x.mk!==mk){ if(!F.has(x.mk)) F.set(x.mk,new Map()); F.get(x.mk).set(it.id,(F.get(x.mk).get(it.id)||0)+1); } });
+    it.outs.forEach(o=>{ if(o.mk!==mk){ if(!C.has(o.mk)) C.set(o.mk,new Map()); C.get(o.mk).set(it.id,(C.get(o.mk).get(it.id)||0)+1); } }); });
+  const cap=arr=>arr.sort((a,b)=>{ let x=0,y=0; a[1].forEach(c=>x+=c); b[1].forEach(c=>y+=c); return y-x; }).slice(0,SIDE_CAP);
+  const Fl=cap([...F]), Cl=cap([...C]);
+  const sideHTML=(list,dir)=>list.map(([k,links])=>{ const mm=mod(k); let n=0; links.forEach(c=>n+=c);
+    return `<div class="sh-card" data-mod="${esc(k)}" data-dir="${dir}" style="--c:${modColor(mm)}"><b title="${esc(modLabel(mm))}">${esc(modLabel(mm))}</b><span>${mm.layer} · ${fmt(n)} link${n===1?'':'s'}</span></div>`; }).join('');
+  const showCells=items.some(i=>i.p.cells), meta=S.g.hasMeta;
+  const appliesMod=md.appliesTo&&md.appliesTo!=='-'?md.appliesTo:'';
+  const rows=items.map(it=>{ const p=it.p||{}, d=parentDepth(it,m);
+    let ei=0,eo=0; it.ins.forEach(x=>{ if(x.mk!==mk) ei++; }); it.outs.forEach(o=>{ if(o.mk!==mk) eo++; });
+    const ap=it.appliesTo&&it.appliesTo!=='-'?esc(it.appliesTo):(appliesMod?`<span style="color:#94a3b8">${esc(appliesMod)}</span>`:'');
+    return `<tr data-id="${it.id}" class="${rowClass(it)}"><td class="li" style="padding-left:${10+d*16}px" title="${esc(itemLabel(it))}">${hlDot(it)}${esc(itemLabel(it))}</td>`+
+      (meta?`<td>${esc(apFmt(p))}</td>`:'')+`<td class="f" title="${isAnon()?'':esc(it.formula)}">${isAnon()?(it.formula?'•••':''):esc(it.formula)}</td>`+
+      (meta?`<td>${esc(p.sum||'')}</td><td>${esc(p.ts||'')}</td><td>${esc(p.ver||'')}</td><td>${ap}</td>`:'')+(showCells?`<td class="n">${p.cells?fmt(p.cells):''}</td>`:'')+
+      `<td class="n">${it.ins.length}${ei?` <span class="ext u" title="${ei} from other modules">${ei}↗</span>`:''}</td><td class="n">${it.outs.length}${eo?` <span class="ext d" title="${eo} in other modules">${eo}↗</span>`:''}</td></tr>`; }).join('');
+  const head=`<div class="sh-head" data-head="${esc(mk)}"><i style="background:${modColor(m)}"></i><span class="nm">${esc(modLabel(m))}</span><small>${m.layer}${m.section&&S.g.hasSections?' · '+esc(laneName(m.section)):''} · ${fmt(m.size)} line items${appliesMod?' · '+esc(appliesMod):''}${md.ts&&md.ts!=='Not Applicable'?' · '+esc(md.ts):''}${modCells(m)?' · '+short(modCells(m))+' cells':''}</small></div>`;
+  const th=`<tr><th>Line Items</th>${meta?'<th>Format</th>':''}<th>Formula</th>${meta?'<th>Summary</th><th>Time Scale</th><th>Versions</th><th>Applies To</th>':''}${showCells?'<th>Cell Count</th>':''}<th>Inputs</th><th>Used By</th></tr>`;
+  $('sheet').innerHTML=`<div class="sh-wrap" style="zoom:${SZ}"><div class="sh-row">
+     <div class="sh-side" id="shL"><h4>Feeds this module (${F.size})</h4>${sideHTML(Fl,-1)}</div>
+     <div><p class="sh-note">Blueprint order. Rows with ↗ link to other modules. Hover a row to see its links, click it to open its lineage.</p><div class="sh-mod" id="shT">${head}<table class="bp"><thead>${th}</thead><tbody>${rows}</tbody></table></div></div>
+     <div class="sh-side" id="shR"><h4>Uses this module (${C.size})</h4>${sideHTML(Cl,1)}</div>
+   </div><svg class="sh-svg" id="shSvg"></svg></div>`;
+  const wrap=$('sheet').querySelector('.sh-wrap'), T=$('shT');
+  const rowEl=new Map([...T.querySelectorAll('tr[data-id]')].map(r=>[r.dataset.id,r]));
+  const links=[]; /* {card, rowId, dir} */
+  const placeSide=(sideId,list,dir)=>{ const side=$(sideId), cards=[...side.querySelectorAll('.sh-card')], top0=rel(T,wrap).y;
+    const want=cards.map((c,i)=>{ const L=list[i][1]; let sum=0,n=0; L.forEach((cnt,id)=>{ const r=rowEl.get(id); if(r){ const rr=rel(r,wrap); sum+=rr.y+rr.h/2; n++; } }); return [n?sum/n:top0,c,L]; }).sort((a,b)=>a[0]-b[0]);
+    let prev=-1e9; const sTop=rel(side,wrap).y;
+    want.forEach(([y,c,L],i)=>{ const h=44; let t=Math.max(Math.min(y-h/2,sTop+26+i*52),prev+8,sTop+26); /* keep order by row position, but pack near the top */ c.style.top=(t-sTop)+'px'; prev=t+h; L.forEach((cnt,id)=>links.push({c,id,dir})); });
+    side.style.height=Math.max(rel(T,wrap).h,prev-sTop)+'px'; };
+  placeSide('shL',Fl,-1); placeSide('shR',Cl,1);
+  drawSheetLines=()=>{ const svg=$('shSvg'); if(!svg) return; svg.setAttribute('width',wrap.scrollWidth/SZ); svg.setAttribute('height',wrap.scrollHeight/SZ);
+    const t=rel(T,wrap); let html='';
+    for(const L of links){ const r=rowEl.get(L.id); if(!r) continue; const rr=rel(r,wrap), cc=rel(L.c,wrap), y=rr.y+rr.h/2, cy2=cc.y+cc.h/2;
+      html+=L.dir<0?`<path class="ln up" data-row="${L.id}" data-mod="${L.c.dataset.mod}" d="${curve(cc.x+cc.w,cy2,t.x,y)}"/>`:`<path class="ln dn" data-row="${L.id}" data-mod="${L.c.dataset.mod}" d="${curve(t.x+t.w,y,cc.x,cy2)}"/>`; }
+    svg.innerHTML=html; };
+  drawSheetLines();
+  /* interaction */
+  const clear=()=>{ wrap.querySelectorAll('.r-in,.r-out,.r-sel').forEach(e=>e.classList.remove('r-in','r-out','r-sel')); wrap.querySelectorAll('.hot,.cold').forEach(e=>e.classList.remove('hot','cold')); };
+  const focusRow=id=>{ clear(); const it=S.byId.get(id); if(!it) return; rowEl.get(id).classList.add('r-sel');
+    it.ins.forEach(x=>{ const r=rowEl.get(x.id); if(r) r.classList.add('r-in'); }); it.outs.forEach(o=>{ const r=rowEl.get(o.id); if(r) r.classList.add('r-out'); });
+    wrap.querySelectorAll('.ln').forEach(l=>l.classList.add(l.dataset.row===id?'hot':'cold'));
+    wrap.querySelectorAll('.sh-card').forEach(c=>{ if([...wrap.querySelectorAll(`.ln[data-row="${id}"]`)].some(l=>l.dataset.mod===c.dataset.mod)) c.classList.add('hot'); }); };
+  const focusCard=k=>{ clear(); wrap.querySelectorAll('.ln').forEach(l=>{ const on=l.dataset.mod===k; l.classList.add(on?'hot':'cold'); if(on){ const r=rowEl.get(l.dataset.row); if(r) r.classList.add(l.classList.contains('up')?'r-in':'r-out'); } }); };
+  T.querySelector('tbody').addEventListener('mouseover',e=>{ const r=e.target.closest('tr[data-id]'); if(r) focusRow(r.dataset.id); });
+  T.querySelector('tbody').addEventListener('mouseleave',clear);
+  T.querySelector('tbody').addEventListener('click',e=>{ const r=e.target.closest('tr[data-id]'); if(r) go({level:'item',id:r.dataset.id}); });
+  wrap.querySelectorAll('.sh-card').forEach(c=>{ c.onmouseenter=()=>focusCard(c.dataset.mod); c.onmouseleave=clear; c.onclick=()=>go({level:'module',mk:c.dataset.mod}); });
+  $('sheet').scrollTop=0; $('sheet').scrollLeft=0;
+}
+
+/* ---- Level 4: line item lineage as columns of mini blueprints ---- */
+function renderLineageSheet(){
+  showSheet(true);
+  const lin=S.focus, meta=S.g.hasMeta;
+  const byLevel=new Map(); lin.lv.forEach((l,id)=>{ if(!byLevel.has(l)) byLevel.set(l,[]); byLevel.get(l).push(id); });
+  const levels=[...byLevel.keys()].sort((a,b)=>a-b);
+  const order=new Map([[lin.id,0]]); /* vertical order index used to keep related rows close */
+  const placeOrder=l=>{ const ids=byLevel.get(l), inner=l<0?l+1:l-1;
+    const bary=id=>{ const nb=nbs(id,l<0?1:-1).filter(x=>lin.lv.get(x)===inner&&order.has(x)).map(x=>order.get(x)); return nb.length?nb.reduce((a,b)=>a+b,0)/nb.length:0; };
+    const groups=new Map(); ids.forEach(id=>{ const k=S.byId.get(id).mk; if(!groups.has(k)) groups.set(k,[]); groups.get(k).push([bary(id),id]); });
+    const gl=[...groups].map(([k,arr])=>{ arr.sort((a,b)=>a[0]-b[0]||S.byId.get(a[1]).idx-S.byId.get(b[1]).idx); return [arr.reduce((t,x)=>t+x[0],0)/arr.length,k,arr]; }).sort((a,b)=>a[0]-b[0]);
+    let i=0; gl.forEach(([,,arr])=>arr.forEach(([,id])=>order.set(id,i++))); return gl; };
+  const groupsByLevel=new Map([[0,[[0,S.byId.get(lin.id).mk,[[0,lin.id]]]]]]);
+  for(let l=-1;byLevel.has(l);l--) groupsByLevel.set(l,placeOrder(l));
+  for(let l=1;byLevel.has(l);l++) groupsByLevel.set(l,placeOrder(l));
+  const colTitle=l=>l===0?'Selected':l<0?`Inputs · ${-l} step${l===-1?'':'s'} back`:`Used by · ${l} step${l===1?'':'s'} on`;
+  const chip=(id,dir)=>{ const h=linHidden(id,dir); return h?`<button class="xp" data-x="${id}" data-d="${dir}" title="Show ${h} more ${dir<0?'inputs':'items that use it'}">+${fmt(h)}</button>`:''; };
+  const cols=levels.map(l=>{ const blocks=groupsByLevel.get(l).map(([,mk,arr])=>{ const m=mod(mk);
+      const rows=arr.map(([,id])=>{ const it=S.byId.get(id), p=it.p||{}, left=l<=0?chip(id,-1):'', right=l>=0?chip(id,1):'';
+        return `<tr data-id="${id}" class="${id===lin.id?'r-center':''} ${rowClass(it)}"><td class="x">${left}</td><td class="li" title="${esc(itemLabel(it))}">${hlDot(it)}${esc(itemLabel(it))}</td>${meta?`<td>${esc(apFmt(p))}</td><td>${esc(p.sum||'')}</td><td>${esc(p.ts||'')}</td>`:`<td class="n">${it.ins.length} in · ${it.outs.length} out</td>`}<td class="x">${right}</td></tr>`; }).join('');
+      return `<div class="sh-mod"><div class="sh-head" data-head="${esc(mk)}"><i style="background:${modColor(m)}"></i><span class="nm">${esc(modLabel(m))}</span><small>${m.layer}</small></div><table class="bp"><thead><tr><th></th><th>Line Item</th>${meta?'<th>Format</th><th>Summary</th><th>Time Scale</th>':'<th>Links</th>'}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`; }).join('');
+    return `<div class="sh-col${l===0?' c0':''}" data-l="${l}"><div class="sh-colh">${colTitle(l)}</div>${blocks}</div>`; }).join('');
+  $('sheet').innerHTML=`<div class="sh-wrap" style="zoom:${SZ}"><div class="sh-cols">${cols}</div><svg class="sh-svg" id="shSvg"></svg></div>`;
+  const wrap=$('sheet').querySelector('.sh-wrap');
+  const rowEl=new Map([...wrap.querySelectorAll('tr[data-id]')].map(r=>[r.dataset.id,r]));
+  drawSheetLines=()=>{ const svg=$('shSvg'); if(!svg) return; svg.setAttribute('width',wrap.scrollWidth/SZ); svg.setAttribute('height',wrap.scrollHeight/SZ); let html='';
+    lin.lv.forEach((l,id)=>{ const a=rowEl.get(id); if(!a) return; const ra=rel(a.closest('.sh-mod'),wrap), rowA=rel(a,wrap);
+      for(const o of nbs(id,1)){ const lo=lin.lv.get(o); if(lo===undefined||lo<=l) continue; const b=rowEl.get(o); if(!b) continue; const rb=rel(b.closest('.sh-mod'),wrap), rowB=rel(b,wrap);
+        const dca=S.g.dca.has(S.byId.get(id).idx+'>'+S.byId.get(o).idx);
+        html+=`<path class="ln ${lo<=0?'up':'dn'}" data-a="${id}" data-b="${o}" ${dca?'stroke-dasharray="5 4"':''} d="${curve(ra.x+ra.w,rowA.y+rowA.h/2,rb.x,rowB.y+rowB.h/2)}"/>`; } });
+    svg.innerHTML=html; };
+  drawSheetLines();
+  const clear=()=>{ wrap.querySelectorAll('.r-sel,.r-in,.r-out').forEach(e=>e.classList.remove('r-sel','r-in','r-out')); wrap.querySelectorAll('.hot,.cold').forEach(e=>e.classList.remove('hot','cold')); };
+  wrap.addEventListener('mouseover',e=>{ const r=e.target.closest('tr[data-id]'); if(!r) return; const id=r.dataset.id; clear(); r.classList.add('r-sel');
+    wrap.querySelectorAll('.ln').forEach(l=>{ const on=l.dataset.a===id||l.dataset.b===id; l.classList.add(on?'hot':'cold'); if(on){ const other=rowEl.get(l.dataset.a===id?l.dataset.b:l.dataset.a); if(other) other.classList.add(l.dataset.a===id?'r-out':'r-in'); } }); });
+  wrap.addEventListener('mouseleave',clear);
+  wrap.addEventListener('click',e=>{ const x=e.target.closest('button.xp'); if(x){ e.stopPropagation(); linExpand(x.dataset.x,+x.dataset.d); return render(); }
+    const h=e.target.closest('[data-head]'); if(h) return go({level:'module',mk:h.dataset.head});
+    const r=e.target.closest('tr[data-id]'); if(r&&r.dataset.id!==lin.id) linRecentre(r.dataset.id); });
+  const c0=wrap.querySelector('.sh-col.c0'), sh=$('sheet'), cr=rowEl.get(lin.id);
+  if(c0){ const a=rel(c0,wrap); sh.scrollLeft=Math.max(0,(a.x+a.w/2)*SZ-sh.clientWidth/2); }
+  if(cr){ const a=rel(cr,wrap); sh.scrollTop=Math.max(0,a.y*SZ-sh.clientHeight/2); }
+}
+
 /* ---------- Navigation ---------- */
 function go(nav){
   S.nav=nav; hideTip();
@@ -785,10 +945,12 @@ function up(){ const n=S.nav; if(n.level==='item'||n.level==='chain') go({level:
 function goTo(id){ if(!S.g) return; if(id.startsWith('m:')) return go({level:'module',mk:id.slice(2)}); if(id.startsWith('L:')) return go({level:'lane',lane:id.slice(2)}); S.focus=null; go({level:'item',id}); }
 function render(){
   if(!S.g) return;
-  const n=S.nav; let els;
-  if(n.level==='model') els=buildModel(); else if(n.level==='lane') els=buildLane(n.lane); else if(n.level==='module') els=buildModule(n.mk); else els=buildLineage();
-  makeCy(els); applyFilter(); renderNav(); renderLegend(); renderDetails();
-  if((n.level==='item'||n.level==='chain')&&cy.nodes().length>160) cy.animate({center:{eles:cy.getElementById(S.focus.id)},zoom:Math.max(cy.zoom(),.7)},{duration:300});
+  const n=S.nav;
+  if(n.level==='module') renderModuleSheet(n.mk);
+  else if(n.level==='item') renderLineageSheet();
+  else { showSheet(false); const els=n.level==='model'?buildModel():n.level==='lane'?buildLane(n.lane):buildLineage(); makeCy(els); applyFilter();
+    if(n.level==='chain'&&cy.nodes().length>160) cy.animate({center:{eles:cy.getElementById(S.focus.id)},zoom:Math.max(cy.zoom(),.7)},{duration:300}); }
+  renderNav(); renderLegend(); renderDetails();
 }
 function renderNav(){
   const n=S.nav, parts=[], lvlName={model:'Model',lane:S.groupBy==='section'?'Section':'Layer',module:'Module',item:'Line item lineage',chain:'Module lineage'}[n.level];
@@ -862,14 +1024,14 @@ function showTip(n,p){
 function hideTip(){ $('tip').style.display='none'; }
 
 /* ---------- Colour-by legend and filter ---------- */
-function viewItems(){ if(!cy) return []; return cy.nodes('[kind="card"]').map(n=>S.byId.get(n.id())).filter(Boolean); }
+function viewItems(){ if($('sheet').style.display==='block') return [...$('sheet').querySelectorAll('tr[data-id]')].map(r=>S.byId.get(r.dataset.id)).filter(Boolean); if(!cy) return []; return cy.nodes('[kind="card"]').map(n=>S.byId.get(n.id())).filter(Boolean); }
 function renderLegend(){
   const el=$('legend');
   if(!S.hl){ el.innerHTML=LAYERS.filter(l=>S.g.modList.some(m=>m.layer===l)).map(l=>`<span><i style="background:${LAYER_COLOR[l]}"></i>${l}</span>`).join('')+(S.nav.level==='model'&&S.groupBy==='layer'?'<span><i style="background:#ff6b6b;border-radius:2px;height:3px;vertical-align:3px"></i>Flow against DISCO</span>':''); return; }
   if(isHeat(S.hl)){ el.innerHTML=`<span>${HL_NAMES[S.hl]}:</span><span><i style="background:${heatColor(0)}"></i>Low</span><span><i style="background:${heatColor(.6)}"></i>High</span><span><i style="background:${heatColor(1)}"></i>Highest</span>`; return; }
   const counts=new Map(); const src=viewItems().length?viewItems():S.g.items; src.forEach(it=>{ const c=catOf(it,S.hl); counts.set(c,(counts.get(c)||0)+1); });
   el.innerHTML=`<span>${HL_NAMES[S.hl]}:</span>`+[...counts].sort((a,b)=>b[1]-a[1]).map(([c,n])=>`<span class="click${S.hlFilter&&S.hlFilter!==c?' off':''}" data-cat="${esc(c)}"><i style="background:${(CAT_COLORS[S.hl]||{})[c]||'#93a0bd'}"></i>${esc(c)} (${fmt(n)})</span>`).join('')+(S.hlFilter?'<span class="click" data-cat="">Show all</span>':'');
-  el.querySelectorAll('[data-cat]').forEach(s=>s.onclick=()=>{ const c=s.dataset.cat; S.hlFilter=!c||S.hlFilter===c?null:c; applyFilter(); renderLegend(); });
+  el.querySelectorAll('[data-cat]').forEach(s=>s.onclick=()=>{ const c=s.dataset.cat; S.hlFilter=!c||S.hlFilter===c?null:c; if($('sheet').style.display==='block') return render(); applyFilter(); renderLegend(); });
 }
 function applyFilter(){
   if(!cy) return;
@@ -950,8 +1112,8 @@ function showFlow(la,lb){
    ${pairs.slice(0,300).map(([a,b,w])=>`<div class="row" data-go="m:${esc(b)}"><span>${esc(modLabel(mod(a)))} → ${esc(modLabel(mod(b)))}</span><span class="muted">${fmt(w)}</span></div>`).join('')}`;
   switchTab('details');
 }
-$('details').addEventListener('mouseover',e=>{ const r=e.target.closest('[data-hover]'); if(r&&cy){ const x=cy.getElementById(r.dataset.hover); if(x.length) x.addClass('hit'); } });
-$('details').addEventListener('mouseout',e=>{ const r=e.target.closest('[data-hover]'); if(r&&cy){ const x=cy.getElementById(r.dataset.hover); if(x.length) x.removeClass('hit'); } });
+$('details').addEventListener('mouseover',e=>{ const r=e.target.closest('[data-hover]'); if(!r) return; const t=$('sheet').querySelector(`tr[data-id="${r.dataset.hover}"]`); if(t){ t.classList.add('r-sel'); t.scrollIntoView({block:'nearest',inline:'nearest'}); } if(cy){ const x=cy.getElementById(r.dataset.hover); if(x.length) x.addClass('hit'); } });
+$('details').addEventListener('mouseout',e=>{ const r=e.target.closest('[data-hover]'); if(!r) return; const t=$('sheet').querySelector(`tr[data-id="${r.dataset.hover}"]`); if(t) t.classList.remove('r-sel'); if(cy){ const x=cy.getElementById(r.dataset.hover); if(x.length) x.removeClass('hit'); } });
 document.addEventListener('click',e=>{
   const h=e.target.closest('[data-hl]'); if(h&&h.closest('aside')){ S.hl=h.dataset.hl; S.hlFilter=h.dataset.cat; $('hl').value=S.hl; return render(); }
   const g=e.target.closest('[data-go]'); if(g&&g.closest('aside')){ if(!g.closest('#details')) switchTab('details'); return goTo(g.dataset.go); }
@@ -1057,10 +1219,10 @@ document.querySelectorAll('#groupSeg button').forEach(b=>b.onclick=()=>{ if(!S.g
 $('hl').onchange=()=>{ S.hl=$('hl').value; S.hlFilter=null; if(S.g) render(); };
 $('linkStyle').onchange=()=>{ if(cy) cy.style(styles()); };
 $('anon').onchange=()=>{ if(!S.g) return; buildSearch(); render(); renderProfile(); renderInsights(); };
-$('zin').onclick=()=>cy&&cy.animate({zoom:{level:cy.zoom()*1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
-$('zout').onclick=()=>cy&&cy.animate({zoom:{level:cy.zoom()/1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
-$('zfit').onclick=()=>cy&&cy.animate({fit:{eles:cy.elements(),padding:40}},{duration:300});
-$('pngBtn').onclick=()=>{ if(!cy||!cy.nodes().length) return; $('pngImg').src=cy.png({full:true,scale:cy.nodes().length>600?1:2,bg:'#0d1220',maxWidth:5000,maxHeight:5000}); $('modal').style.display='flex'; };
+$('zin').onclick=()=>$('sheet').style.display==='block'?setZoom(SZ*1.15):cy&&cy.animate({zoom:{level:cy.zoom()*1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
+$('zout').onclick=()=>$('sheet').style.display==='block'?setZoom(SZ/1.15):cy&&cy.animate({zoom:{level:cy.zoom()/1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
+$('zfit').onclick=()=>$('sheet').style.display==='block'?(()=>{ const w=$('sheet').querySelector('.sh-wrap'); setZoom(1); setZoom(Math.min(1,$('sheet').clientWidth/w.scrollWidth)); })():cy&&cy.animate({fit:{eles:cy.elements(),padding:40}},{duration:300});
+$('pngBtn').onclick=()=>{ if($('sheet').style.display==='block'){ $('pngImg').removeAttribute('src'); $('pngImg').alt=''; $('modal').querySelector('.note').textContent='Image export works on the map views (Model, Layer and Module lineage). For blueprint tables, use your browser\'s screenshot tool or Print to PDF.'; $('modal').style.display='flex'; return; } $('modal').querySelector('.note').textContent='Right-click or long-press the image to save it.'; if(!cy||!cy.nodes().length) return; $('pngImg').src=cy.png({full:true,scale:cy.nodes().length>600?1:2,bg:'#0d1220',maxWidth:5000,maxHeight:5000}); $('modal').style.display='flex'; };
 $('modalClose').onclick=()=>$('modal').style.display='none';
 $('modal').onclick=e=>{ if(e.target.id==='modal') $('modal').style.display='none'; };
 function switchTab(t){ document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t)); ['details','profile','insights'].forEach(id=>$(id).style.display=t===id?'block':'none'); }
