@@ -152,3 +152,26 @@ test('the sample model shows one finding for each check it was built to show', (
     'CAL03 Variance.Old Budget Uplift [1.1]',
   ]);
 });
+
+test('keeps the original summary and tidiness checks', () => {
+  const r = parse(csv([
+    ['Module', 'Line Item', 'Formula', 'Format', 'Summary'],
+    ['CAL01 Calc', 'Label', '', 'Text', 'Sum'],
+    ['CAL01 Calc', 'Flag', '', 'Boolean', 'Any'],
+    ['CAL01 Calc', 'Ratio', 'Label', 'Number', 'Formula'],
+    ['CAL01 Calc', 'Long', 'Flag' + ' + 0'.repeat(80), 'Number', 'None'],
+    ['REP01 Out', 'Shown', 'CAL01 Calc.Ratio', 'Number', 'Sum'],
+  ]));
+  assert.deepEqual(findings(r, 'Non-numeric line items with a summary method', true), ['CAL01 Calc.Label [Text · Sum]']);
+  assert.deepEqual(findings(r, 'Boolean line items with a summary method', true), ['CAL01 Calc.Flag [Any]']);
+  assert.deepEqual(findings(r, 'Summary method "Formula"'), ['CAL01 Calc.Ratio']);
+  assert.deepEqual(findings(r, 'Not referenced by anything'), ['CAL01 Calc.Long']); // REP01 Out is an output module
+  assert.deepEqual(findings(r, 'Very long formulas (300+ characters)', true), ['CAL01 Calc.Long [324 chars]']);
+});
+
+test('leaves out the summary checks when the export has no format or summary columns', () => {
+  const r = parse('Module,Line Item,Formula\nCAL01 Calc,a,\nCAL01 Calc,b,a\n');
+  const titles = architectChecks({ items: r.items, byName: r.mods, edges: r.edges }).map((c) => c.t);
+  assert.ok(!titles.includes('Summary method "Formula"'));
+  assert.ok(titles.includes('Not referenced by anything'));
+});

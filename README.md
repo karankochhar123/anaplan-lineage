@@ -53,6 +53,26 @@ The app uses a light theme close to Anaplan's own interface by default, with a n
 
 ![Model profile with the architect checks. "Flows against DISCO" is open and lists REP01 P&L Report feeding CAL03 Variance.](docs/screenshots/profile.png)
 
+## Compare two exports
+
+See what changed between two versions of a model, for example before and after a sprint or a release.
+
+1. Load the **newer** export as usual.
+2. Click **Compare…** and choose an **older** export of the same model.
+
+The **Changes** tab then lists:
+
+- line items and modules added, removed or changed. For a changed line item it shows which of formula, format, summary, Applies To, time scale, versions and access drivers changed, with old and new values in the line item panel.
+- lineage links added or removed between line items that exist in both exports
+- architect check findings that are new, or resolved on line items that still exist
+- modules and line items whose cell count moved by 10% or more
+
+**Colour by → Changes** marks added and changed line items on the map and blueprints, and **Copy CSV** copies every change. Line items are matched by module and line item name, because exports carry no IDs, so a renamed line item shows as one removal and one addition. A field is only compared when both exports have its column.
+
+To try it, load [`examples/sample-model.csv`](examples/sample-model.csv) and compare it with [`examples/sample-model-older.csv`](examples/sample-model-older.csv), a made-up earlier version.
+
+![Changes tab comparing the sample model with an older version: 3 line items added, 2 removed and 2 changed, with the CAL03 Variance blueprint coloured by change.](docs/screenshots/changes.png)
+
 ## Sharing screenshots safely
 
 Tick **Anonymise** before you take a screenshot or export an image. Module, line item and section names become neutral labels (for example `CAL001`, `Line item 3.2`, `Section 1`). List, version and time range names become `List 1`, `Version 1` and `Time range 1`. Formulas, notes, codes and data tags are hidden. The same list keeps the same label everywhere, so the model's structure still reads correctly. Untick it to see the real names again.
