@@ -120,6 +120,7 @@ pre.formula{background:#0b1020;border:1px solid var(--line);border-radius:8px;pa
   <option value="99">Trace: full chain</option><option value="1">Trace: 1 hop</option><option value="2">Trace: 2 hops</option><option value="3">Trace: 3 hops</option>
  </select>
  <select id="linkStyle" title="How links between nodes are drawn"><option value="subtle">Links: subtle</option><option value="bold">Links: bold</option><option value="hidden">Links: on trace</option></select>
+ <label class="chk" title="Line items view: draw each module as a box with its line items inside"><input type="checkbox" id="groupMods" checked>Group by module</label>
  <label class="chk"><input type="checkbox" id="isolate">Isolate</label>
  <label class="chk"><input type="checkbox" id="heat">Heat map</label>
  <label class="chk"><input type="checkbox" id="lists">Lists</label>
@@ -384,11 +385,16 @@ function styleFor(big){return [
  {selector:'node.dn',style:{'border-width':3,'border-color':'#2fd3a7'}},
  {selector:'edge.eup',style:Object.assign({'line-color':'#f5b942','target-arrow-color':'#f5b942','z-index':9},traceLook(big))},
  {selector:'edge.edn',style:Object.assign({'line-color':'#2fd3a7','target-arrow-color':'#2fd3a7','z-index':9},traceLook(big))},
- {selector:'node.hit',style:{'border-width':4,'border-color':'#6c8cff'}}
+ {selector:'node.hit',style:{'border-width':4,'border-color':'#6c8cff'}},
+ {selector:'node[kind="group"]',style:{'shape':'round-rectangle','background-color':'#141c30','background-opacity':.85,'border-width':1.2,'border-color':'data(fill)','border-opacity':.55,
+   'label':'data(label)','text-valign':'top','text-halign':'center','text-margin-y':-6,'font-size':12,'font-weight':600,'color':'#c9d2ea','text-outline-width':0,
+   'text-background-color':'#0d1220','text-background-opacity':.9,'text-background-padding':3,'text-background-shape':'round-rectangle','text-max-width':260,'padding':18,'min-zoomed-font-size':5,'corner-radius':10}},
+ {selector:'node[kind="group"].faded',style:{'opacity':.25}},
+ {selector:'node[kind="group"].chain',style:{'border-opacity':1,'border-width':1.6}}
 ];}
 function makeCy(els){
   stopPulse(); if(cy) cy.destroy();
-  const nodes=els.filter(e=>!e.data.source).length, edges=els.length-nodes, big=nodes>500||edges>1500; S.big=big;
+  const nodes=els.filter(e=>!e.data.source&&e.data.kind!=='group').length, edges=els.filter(e=>e.data.source).length, big=nodes>500||edges>1500; S.big=big;
   cy=cytoscape({container:$('cy'),elements:els,style:styleFor(big),minZoom:.03,maxZoom:3,
     textureOnViewport:big,hideEdgesOnViewport:big,motionBlur:false,pixelRatio:big?1:'auto',boxSelectionEnabled:false});
   cy.on('tap','node',e=>onTap(e.target));
@@ -398,6 +404,10 @@ function makeCy(els){
 function layoutOpts(n,e){
   const anim=n<350;
   if(S.mode==='module'&&S.layout==='flow'&&n>150) return {name:'preset',positions:discoPositions(),fit:true,padding:40,animate:false};
+  if(S.mode==='line'&&cy.nodes('[kind="group"]').length){
+    if(S.layout==='flow') return {name:'preset',positions:groupedPositions(),fit:true,padding:40,animate:false};
+    if(hasFcose) return {name:'fcose',quality:n>600?'default':'proof',randomize:true,animate:anim,animationDuration:600,nodeRepulsion:()=>12000,idealEdgeLength:()=>90,nestingFactor:.5,gravityCompound:1,gravityRangeCompound:1.5,nodeSeparation:80,packComponents:false,fit:true,padding:40};
+  }
   if(S.layout==='flow'&&hasDagre&&n<=800&&e<=900)
     return {name:'dagre',rankDir:'LR',nodeSep:S.mode==='module'?30:14,rankSep:S.mode==='module'?110:90,edgeSep:8,animate:anim,animationDuration:450,fit:true,padding:40};
   if(hasFcose) return {name:'fcose',quality:(n>250||e>1500)?'draft':'default',randomize:true,animate:anim,animationDuration:600,nodeRepulsion:()=>S.mode==='module'?9000:4500,idealEdgeLength:()=>S.mode==='module'?110:60,edgeElasticity:()=>.45,nodeSeparation:60,numIter:(n>700||e>1000)?250:2500,packComponents:true,fit:true,padding:40};
@@ -416,6 +426,53 @@ function discoPositions(){
     g.forEach((node,i)=>{ const c=Math.floor(i/rows), r=i%rows; pos[node.id()]={x:x+c*W,y:(r-(rows-1)/2)*H}; });
     x+=cols*W+GAP; }
   return node=>pos[node.id()];
+}
+/* Line items grouped by module: module boxes left-to-right in data-flow order,
+   and inside each box, line items in columns by their own flow (inputs left, calcs right). */
+function levels(ids,edgesOf){
+  const indeg=new Map(ids.map(i=>[i,0])), lvl=new Map(ids.map(i=>[i,0]));
+  for(const i of ids) for(const t of edgesOf(i)) if(indeg.has(t)) indeg.set(t,indeg.get(t)+1);
+  const q=ids.filter(i=>indeg.get(i)===0); let h=0;
+  while(h<q.length){ const i=q[h++]; for(const t of edgesOf(i)){ if(!indeg.has(t)) continue; lvl.set(t,Math.max(lvl.get(t),lvl.get(i)+1)); indeg.set(t,indeg.get(t)-1); if(indeg.get(t)===0) q.push(t); } }
+  return lvl; /* items in cycles keep the level they had reached */
+}
+function groupedPositions(){
+  const IW=150, IH=46, ROWS=16, MGAP=80, RGAP=170;
+  const groups=cy.nodes('[kind="group"]'), pos={}, box=new Map();
+  const present=new Set(cy.nodes('[kind="item"]').map(n=>n.id()));
+  // 1) inside each module
+  groups.forEach(gn=>{
+    const kids=gn.children('[kind="item"]').map(n=>n.id()), kidSet=new Set(kids);
+    const lv=levels(kids,id=>S.byId.get(id).outs.map(o=>o.id).filter(x=>kidSet.has(x)));
+    const byL=new Map(); kids.forEach(id=>{ const l=lv.get(id); if(!byL.has(l)) byL.set(l,[]); byL.get(l).push(id); });
+    let col=0, maxRows=0; const local={};
+    [...byL.keys()].sort((a,b)=>a-b).forEach(l=>{ const arr=byL.get(l).sort((a,b)=>S.byId.get(a).idx-S.byId.get(b).idx);
+      for(let i=0;i<arr.length;i+=ROWS){ const chunk=arr.slice(i,i+ROWS); chunk.forEach((id,r)=>local[id]={x:col*IW,y:r*IH}); maxRows=Math.max(maxRows,chunk.length); col++; } });
+    box.set(gn.id(),{local,w:Math.max(1,col)*IW,h:Math.max(1,maxRows)*IH});
+  });
+  // 2) module order by flow
+  const gids=groups.map(n=>n.id()), gOut=new Map(gids.map(g=>[g,new Set()])), gIn=new Map(gids.map(g=>[g,new Set()]));
+  cy.edges().forEach(e=>{ const a=e.source().parent(), b=e.target().parent(); if(a.length&&b.length&&a.id()!==b.id()){ gOut.get(a.id()).add(b.id()); gIn.get(b.id()).add(a.id()); } });
+  const glv=levels(gids,g=>[...gOut.get(g)]);
+  const ranks=new Map(); gids.forEach(g=>{ const r=glv.get(g); if(!ranks.has(r)) ranks.set(r,[]); ranks.get(r).push(g); });
+  let area=0,maxH=0; box.forEach(b=>{ area+=(b.w+90)*(b.h+MGAP); maxH=Math.max(maxH,b.h); });
+  const aspect=Math.max(1,cy.width()/Math.max(1,cy.height())), maxColH=Math.max(maxH,500,Math.sqrt(area/aspect));
+  const gy=new Map(); let x=0;
+  [...ranks.keys()].sort((a,b)=>a-b).forEach(r=>{
+    const col=ranks.get(r);
+    const bary=g=>{ const ys=[...gIn.get(g)].filter(p=>gy.has(p)).map(p=>gy.get(p)); return ys.length?ys.reduce((a,b)=>a+b,0)/ys.length:Infinity; };
+    col.sort((a,b)=>{ const d=bary(a)-bary(b); return isNaN(d)||d===0?String(cy.getElementById(a).data('label')).localeCompare(String(cy.getElementById(b).data('label')),undefined,{numeric:true}):d; });
+    /* wrap tall columns into sub-columns so the picture keeps a screen-like shape */
+    const subs=[]; let cur=[],h=0;
+    col.forEach(g=>{ const b=box.get(g); if(cur.length&&h+b.h>maxColH){ subs.push(cur); cur=[]; h=0; } cur.push(g); h+=b.h+MGAP; });
+    if(cur.length) subs.push(cur);
+    subs.forEach(sc=>{ const total=sc.reduce((t,g)=>t+box.get(g).h,0)+MGAP*(sc.length-1); let y=-total/2, w=0;
+      sc.forEach(g=>{ const b=box.get(g); for(const id in b.local) pos[id]={x:x+b.local[id].x,y:y+b.local[id].y}; gy.set(g,y+b.h/2); y+=b.h+MGAP; w=Math.max(w,b.w); });
+      x+=w+90; });
+    x+=RGAP-90; });
+  // lists (if shown) in a column on the left
+  const lists=cy.nodes('[kind="list"]'); lists.forEach((n,i)=>pos[n.id()]={x:-RGAP-60,y:(i-(lists.length-1)/2)*IH});
+  return n=>n.isParent()?undefined:(pos[n.id()]||{x:0,y:0});
 }
 function runLayout(eles){ const t=eles||cy.elements().not('.hidden'); const n=t.nodes().length; t.layout(layoutOpts(n,t.edges().length)).run(); }
 
@@ -531,7 +588,9 @@ function elements(){
   else { const c=S.byId.get(S.focus.id); const tr=traceItems(c,+$('depth').value,FOCUS_CAP); S.focus.tr=tr;
     set=[c,...[...tr.up].map(id=>S.byId.get(id)),...[...tr.dn].map(id=>S.byId.get(id))]; }
   const ids=new Set(set.map(i=>i.id)), maxL=maxOf(set,i=>i.formula.length);
-  for(const it of set) els.push(itemNode(it,heat,maxL));
+  const grouped=$('groupMods').checked;
+  if(grouped){ const seenG=new Set(); for(const it of set){ if(!seenG.has(it.mk)){ seenG.add(it.mk); const m=g.mods.get(it.mk); els.push({data:{id:'g:'+it.mk,ref:it.mk,kind:'group',label:modLabel(m),fill:colorOf(m.name),size:20}}); } } }
+  for(const it of set){ const n=itemNode(it,heat,maxL); if(grouped) n.data.parent='g:'+it.mk; els.push(n); }
   for(const it of set) for(const o of it.outs) if(ids.has(o.id)) els.push({data:{id:it.id+'>'+o.id,source:it.id,target:o.id,width:1.3,thin:.8}});
   if(showLists){ const used=new Set(); for(const it of set) for(const l of it.lists){ if(!used.has(l)){used.add(l);els.push({data:{id:'l:'+l,kind:'list',label:listLabel(l),fill:PALETTE.LIST,size:14}});} els.push({data:{id:'le:'+l+'>'+it.id,source:'l:'+l,target:it.id,kind:'list',width:.8,thin:.6}}); } }
   return els;
@@ -565,6 +624,7 @@ function updateBanner(nodes){
 
 /* ---------- Selection ---------- */
 function onTap(node){
+  if(node.data('kind')==='group'){ const key=node.data('ref'); const {up,dn}=modTrace(key,+$('depth').value); showDetails(node,up.size,dn.size); return; }
   if(node.data('kind')==='item'&&S.mode==='line'&&lineView()!=='all'){ return focusItem(node.id()); }
   selectInPlace(node);
 }
@@ -582,12 +642,13 @@ function modTrace(key,depth){
 }
 function applyHighlight(id,up,dn,fade=true){
   cy.batch(()=>{
-    cy.elements().removeClass('sel up dn eup edn faded hidden hit');
+    cy.elements().removeClass('sel up dn eup edn faded hidden hit chain');
     const node=cy.getElementById(id); node.addClass('sel');
     up.forEach(x=>cy.getElementById(x).addClass('up')); dn.forEach(x=>cy.getElementById(x).addClass('dn'));
     const inUp=x=>up.has(x)||x===id, inDn=x=>dn.has(x)||x===id;
     cy.edges().forEach(e=>{ const s=e.data('source'),t=e.data('target'); if(up.has(s)&&inUp(t)) e.addClass('eup'); else if(inDn(s)&&dn.has(t)) e.addClass('edn'); });
-    if(fade){ const keep=cy.collection().union(node).union(cy.nodes('.up, .dn')).union(cy.edges('.eup, .edn')); cy.elements().not(keep).addClass($('isolate').checked?'hidden':'faded'); }
+    const chainNodes=cy.collection().union(node).union(cy.nodes('.up, .dn')); const parents=chainNodes.parents(); parents.addClass('chain');
+    if(fade){ const keep=chainNodes.union(parents).union(cy.edges('.eup, .edn')); cy.elements().not(keep).addClass($('isolate').checked?'hidden':'faded'); }
     else cy.edges().not('.eup, .edn').addClass('faded');
   });
   startPulse();
@@ -642,7 +703,7 @@ function showDetails(node,nu,nd,truncated){
      <h3>Formula</h3>${it.formula?(isAnon()?'<p class="muted">Hidden while anonymised.</p>':`<pre class="formula">${esc(it.formula)}</pre>`):'<p class="muted">No formula (input or data line item).</p>'}
      <h3>Direct inputs (${fmt(it.ins.length)})</h3><div class="chips">${chipList(it.ins,x=>chip(x.id,itemLabel(x),'up',sub(x)))||'<span class="muted">None</span>'}</div>
      <h3>Used by (${fmt(it.outs.length)})</h3><div class="chips">${chipList(it.outs,x=>chip(x.id,itemLabel(x),'dn',sub(x)))||'<span class="muted">Nothing references this line item</span>'}</div>`;
-  } else if(kind==='module'){
+  } else if(kind==='module'||kind==='group'){
     const m=S.g.mods.get(node.data('ref')); const ups=[...(S.g.modIn.get(m.key)||[])], dns=[...(S.g.modOut.get(m.key)||new Map()).keys()];
     const items=[...m.items.values()];
     el.innerHTML=`<div class="title">${esc(modLabel(m))}</div><div class="sub">${fmt(m.size)} line items · ${fmt(items.filter(i=>i.formula).length)} with formulas</div>${counts}
@@ -756,7 +817,7 @@ document.querySelectorAll('#layoutSeg button').forEach(b=>b.onclick=()=>{ S.layo
 $('depth').onchange=()=>{ if(!S.g) return; if(S.mode==='line'&&S.focus) render(); else if(S.sel){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
 $('linkStyle').onchange=()=>{ if(cy){ cy.style(styleFor(S.big)); if(cy.edges('.eup, .edn').length) startPulse(); else stopPulse(); } };
 $('isolate').onchange=()=>{ if(S.sel&&!S.focus){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
-['heat','lists'].forEach(id=>$(id).onchange=()=>{ if(S.g) render(); });
+['heat','lists','groupMods'].forEach(id=>$(id).onchange=()=>{ if(S.g) render(); });
 $('anon').onchange=()=>{ if(!S.g) return; buildSearch(); render(); renderHealth(); renderInsights(); if(!S.sel&&!S.focus) showDetails(null); };
 $('bannerClose').onclick=()=>{ S.focus=null; S.moduleFilter=null; S.sel=null; S.history=[]; render(); showDetails(null); };
 $('bannerBack').onclick=()=>{ const h=S.history.pop(); if(!h) return; S.focus=h.focus; S.moduleFilter=h.moduleFilter; S.sel=h.focus?h.focus.id:null; render(); if(!S.focus) showDetails(null); };
