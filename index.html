@@ -608,22 +608,28 @@ async function loadText(files){
 }
 function hydrate(res){
   const {items,modules,edges,source}=res;
-  const mods=indexItems(items,modules);
+  /* The parser keys modules by name. The UI re-keys them as M0, M1… in model order, so module
+     names never end up in element ids or data attributes (which Anonymise cannot reach). */
+  const byName=indexItems(items,modules), ordered=[...byName.values()].sort((a,b)=>a.order-b.order), mods=new Map();
+  ordered.forEach((m,i)=>{ m.key='M'+i; mods.set(m.key,m); });
+  for(const it of items) it.mk=byName.get(it.mk).key;
   for(const it of items){it.ins=[];it.outs=[];}
   const dca=new Set();
   for(const [s,t,k] of edges){ items[t].ins.push(items[s]); items[s].outs.push(items[t]); if(k===1) dca.add(s+'>'+t); }
   const modOut=new Map(),modIn=new Map();
   for(const [s,t] of edges){ const a=items[s].mk,b=items[t].mk; if(a===b) continue; if(!modOut.has(a))modOut.set(a,new Map()); modOut.get(a).set(b,(modOut.get(a).get(b)||0)+1); if(!modIn.has(b))modIn.set(b,new Set()); modIn.get(b).add(a); }
-  const ordered=[...mods.values()].sort((a,b)=>a.order-b.order);
+  /* sections get neutral keys too (S0, S1…); their names live in S.g.secName */
   let section='Top of model', hasDiv=false; const sections=new Map();
   for(const m of ordered){
     m.layer=layerOf(m.name); m.divider=m.size===0&&isDividerName(m.name);
     if(m.divider){ section=tidySection(m.name); hasDiv=true; continue; }
-    m.section=section; if(!sections.has(section)) sections.set(section,{key:section,mods:[]}); sections.get(section).mods.push(m);
+    if(!sections.has(section)) sections.set(section,{key:'S'+sections.size,name:section,mods:[]});
+    const sec=sections.get(section); m.section=sec.key; sec.mods.push(m);
     if(!m.meta.cells){ let c=0; m.items.forEach(it=>c+=(it.p&&it.p.cells)||0); m.cellsCalc=c; }
   }
   const modList=ordered.filter(m=>!m.divider);
-  S.g={items,mods,modList,edgeCount:edges.length,dcaCount:dca.size,dca,modOut,modIn,source,sections:[...sections.values()],hasSections:hasDiv&&modules.length>0,
+  S.g={items,mods,byName,modList,edgeCount:edges.length,dcaCount:dca.size,dca,modOut,modIn,source,sections:[...sections.values()],
+       secName:new Map([...sections.values()].map(s=>[s.key,s.name])),hasSections:hasDiv&&modules.length>0,
        hasMeta:items.some(i=>i.p&&(i.p.fmtType||i.p.sum))};
   S.byId=new Map(items.map(i=>[i.id,i]));
   /* a loop, not Math.max(...arr): spreading 150k+ items overflows the call stack */
@@ -667,13 +673,13 @@ function showNames(v,kind){ v=String(v||''); if(!isAnon()||!v) return v; return 
 const showLists=v=>showNames(v,'l');
 function showFmt(f){ f=String(f||''); const l=fmtList(f); return isAnon()&&l?'List: '+aliasIn(anon(),'l',l):f; }
 /* a reference to a line item (Parent, access drivers) */
-function showRef(ref,own){ if(!isAnon()||!ref||ref==='-') return ref; const it=lookup(ref,own,S.g.mods); if(!it) return '•••'; return own&&it.mk===own.key?itemLabel(it):modLabel(mod(it.mk))+'.'+itemLabel(it); }
+function showRef(ref,own){ if(!isAnon()||!ref||ref==='-') return ref; const it=lookup(ref,own,S.g.byName); if(!it) return '•••'; return own&&it.mk===own.key?itemLabel(it):modLabel(mod(it.mk))+'.'+itemLabel(it); }
 const showHidden=v=>isAnon()&&v&&v!=='-'?'•••':v;
 const modLabel=m=>isAnon()?anon().get('m:'+m.key):m.name;
 const itemLabel=it=>isAnon()?anon().get(it.id):it.name;
 const mod=k=>S.g.mods.get(k);
 function laneOf(m){ return S.groupBy==='section'?m.section:m.layer; }
-const sectionName=sec=>isAnon()?(anon().get('s:'+sec)||'Section'):sec;
+const sectionName=k=>isAnon()?(anon().get('s:'+k)||'Section'):(S.g.secName.get(k)||k);
 function laneName(l){ return S.groupBy==='section'?sectionName(l):l; }
 function lanes(){ return S.groupBy==='section'?S.g.sections.map(s=>s.key):LAYERS.filter(l=>S.g.modList.some(m=>m.layer===l)); }
 function laneColor(l){ return S.groupBy==='section'?SECTION_COLORS[Math.max(0,lanes().indexOf(l))%SECTION_COLORS.length]:LAYER_COLOR[l]; }
