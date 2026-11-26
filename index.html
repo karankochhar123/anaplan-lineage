@@ -421,7 +421,8 @@ function styleFor(big){return [
 ];}
 function showTip(n,p){
   const t=$('tip'); let html='';
-  if(n.data('kind')==='exp'){ const it=S.byId.get(n.data('of')); html=`Show ${n.data('label').slice(1)} more ${n.data('dir')<0?'inputs':'items that use it'}`; }
+  if(n.data('kind')==='exp'){ const mo=isMod(n.data('of')); html=`Show ${n.data('label').slice(1)} more ${n.data('dir')<0?(mo?'modules that feed it':'inputs'):(mo?'modules it feeds':'items that use it')}`; }
+  else if(isMod(n.id())){ const m=S.g.mods.get(n.id().slice(2)); html=`<b>${esc(modLabel(m))}</b><span class="muted">${fmt(m.size)} line items · feeds from ${(S.g.modIn.get(m.key)||new Set()).size} · feeds into ${(S.g.modOut.get(m.key)||new Map()).size}</span>${n.id()!==S.focus.id?'<div class="note">Click to centre on this</div>':''}`; }
   else { const it=S.byId.get(n.id()); if(!it) return; html=`<b>${esc(itemLabel(it))}</b><span class="muted">${esc(modLabel(S.g.mods.get(it.mk)))} · ${it.ins.length} in · ${it.outs.length} out</span>${it.formula&&!isAnon()?`<code>${esc(it.formula.length>280?it.formula.slice(0,280)+'…':it.formula)}</code>`:''}${n.data('kind')==='card'&&n.id()!==S.focus.id?'<div class="note">Click to centre on this</div>':''}`; }
   t.innerHTML=html; t.style.display='block';
   const W=$('stage').clientWidth, H=$('stage').clientHeight; let x=p.x+14, y=p.y+14;
@@ -442,7 +443,7 @@ function makeCy(els){
 }
 function layoutOpts(n,e){
   const anim=n<350;
-  if(S.mode==='line'&&S.focus) return {name:'preset',fit:true,padding:50,animate:false};
+  if(S.focus) return {name:'preset',fit:true,padding:50,animate:false};
   if(S.mode==='module'&&S.layout==='flow'&&n>150) return {name:'preset',positions:discoPositions(),fit:true,padding:40,animate:false};
   if(S.mode==='line'&&cy.nodes('[kind="group"]').length){
     if(S.layout==='flow') return {name:'preset',positions:groupedPositions(),fit:true,padding:40,animate:false};
@@ -595,16 +596,25 @@ function listLabel(l){return isAnon()?anon().get('l:'+l):l;}
 /* ---------- Views ---------- */
 /* ---------- Focused lineage view: centre item, inputs left, outputs right ---------- */
 const LIN_STEP=60, LIN_CAP=1500;
+/* The lineage view works for line items (ids like i12) and for whole modules (ids like m:cal02 opex) */
+const isMod=id=>id.startsWith('m:');
+function nbs(id,dir){
+  if(isMod(id)){ const k=id.slice(2);
+    if(dir<0){ return [...(S.g.modIn.get(k)||[])].map(x=>[x,(S.g.modOut.get(x)||new Map()).get(k)||0]).sort((a,b)=>b[1]-a[1]).map(x=>'m:'+x[0]); }
+    return [...(S.g.modOut.get(k)||new Map())].sort((a,b)=>b[1]-a[1]).map(x=>'m:'+x[0]); }
+  const it=S.byId.get(id); return (dir<0?it.ins:it.outs).map(x=>x.id);
+}
+function linLabel(id){ return isMod(id)?modLabel(S.g.mods.get(id.slice(2))):itemLabel(S.byId.get(id)); }
 function linNew(id,crumbs){
   const lin={id,lv:new Map([[id,0]]),crumbs:crumbs||[id]};
   const steps=+$('depth').value>=99?1:+$('depth').value;
   S.focus=lin; for(let i=0;i<steps;i++){ linGrow(-1); linGrow(1); }
   return lin;
 }
-function linHidden(it,dir){ let n=0; for(const x of (dir<0?it.ins:it.outs)) if(!S.focus.lv.has(x.id)) n++; return n; }
+function linHidden(id,dir){ let n=0; for(const x of nbs(id,dir)) if(!S.focus.lv.has(x)) n++; return n; }
 function linExpand(id,dir){
-  const lin=S.focus, it=S.byId.get(id), l=lin.lv.get(id); let n=0;
-  for(const x of (dir<0?it.ins:it.outs)){ if(lin.lv.size>=LIN_CAP||n>=LIN_STEP) break; if(lin.lv.has(x.id)) continue; lin.lv.set(x.id,l+dir); n++; }
+  const lin=S.focus, l=lin.lv.get(id); let n=0;
+  for(const x of nbs(id,dir)){ if(lin.lv.size>=LIN_CAP||n>=LIN_STEP) break; if(lin.lv.has(x)) continue; lin.lv.set(x,l+dir); n++; }
   return n;
 }
 function linGrow(dir){
@@ -613,31 +623,33 @@ function linGrow(dir){
   return added;
 }
 function linElements(){
-  const lin=S.focus, g=S.g, els=[], COLW=290, ROWH=38, GAPG=54;
-  const byLevel=new Map(); lin.lv.forEach((l,id)=>{ if(!byLevel.has(l)) byLevel.set(l,[]); byLevel.get(l).push(S.byId.get(id)); });
+  const lin=S.focus, g=S.g, els=[], mods=isMod(lin.id), COLW=mods?320:290, ROWH=mods?44:38, GAPG=mods?0:54;
+  const grp=id=>mods?'':S.byId.get(id).mk;
+  const byLevel=new Map(); lin.lv.forEach((l,id)=>{ if(!byLevel.has(l)) byLevel.set(l,[]); byLevel.get(l).push(id); });
   const ypos=new Map([[lin.id,0]]);
-  const place=l=>{ const items=byLevel.get(l); if(!items) return;
+  const place=l=>{ const ids=byLevel.get(l); if(!ids) return;
     const inner=l<0?l+1:l-1;
-    const bary=it=>{ const nb=(l<0?it.outs:it.ins).filter(x=>lin.lv.get(x.id)===inner&&ypos.has(x.id)).map(x=>ypos.get(x.id)); return nb.length?nb.reduce((a,b)=>a+b,0)/nb.length:0; };
-    const groups=new Map(); for(const it of items){ if(!groups.has(it.mk)) groups.set(it.mk,[]); groups.get(it.mk).push([bary(it),it]); }
-    const gl=[...groups].map(([mk,arr])=>{ arr.sort((a,b)=>a[0]-b[0]); return [arr.reduce((t,x)=>t+x[0],0)/arr.length,mk,arr]; }).sort((a,b)=>a[0]-b[0]);
+    const bary=id=>{ const nb=nbs(id,l<0?1:-1).filter(x=>lin.lv.get(x)===inner&&ypos.has(x)).map(x=>ypos.get(x)); return nb.length?nb.reduce((a,b)=>a+b,0)/nb.length:0; };
+    const groups=new Map(); for(const id of ids){ const k=grp(id); if(!groups.has(k)) groups.set(k,[]); groups.get(k).push([bary(id),id]); }
+    const gl=[...groups].map(([k,arr])=>{ arr.sort((a,b)=>a[0]-b[0]); return [arr.reduce((t,x)=>t+x[0],0)/arr.length,k,arr]; }).sort((a,b)=>a[0]-b[0]);
     const total=gl.reduce((t,[,,arr])=>t+arr.length*ROWH,0)+GAPG*(gl.length-1); let y=-total/2;
-    for(const [,mk,arr] of gl){ for(const [,it] of arr){ ypos.set(it.id,y+ROWH/2); y+=ROWH; } y+=GAPG; } };
+    for(const [,,arr] of gl){ for(const [,id] of arr){ ypos.set(id,y+ROWH/2); y+=ROWH; } y+=GAPG; } };
   for(let l=-1;byLevel.has(l);l--) place(l);
   for(let l=1;byLevel.has(l);l++) place(l);
   const seenG=new Set();
   lin.lv.forEach((l,id)=>{
-    const it=S.byId.get(id), gid='g:'+it.mk+'|'+l, x=l*COLW, y=ypos.get(id)||0;
-    if(!seenG.has(gid)){ seenG.add(gid); const m=g.mods.get(it.mk); els.push({data:{id:gid,ref:it.mk,kind:'group',label:modLabel(m),fill:colorOf(m.name),size:20}}); }
-    els.push({data:{id,ref:id,kind:'card',parent:gid,label:itemLabel(it),fill:colorOf(it.module),size:20},position:{x,y},classes:l===0?'center':''});
-    for(const dir of l===0?[-1,1]:[l<0?-1:1]){ const h=linHidden(it,dir); if(h) els.push({data:{id:'x:'+dir+':'+id,kind:'exp',of:id,dir,parent:gid,label:'+'+fmt(h),size:20},position:{x:x+dir*(l===0?126:118),y}}); }
+    const x=l*COLW, y=ypos.get(id)||0; let gid=null, ref=id, fill;
+    if(mods){ const m=g.mods.get(id.slice(2)); ref=m.key; fill=colorOf(m.name); }
+    else { const it=S.byId.get(id); fill=colorOf(it.module); gid='g:'+it.mk+'|'+l;
+      if(!seenG.has(gid)){ seenG.add(gid); const m=g.mods.get(it.mk); els.push({data:{id:gid,ref:it.mk,kind:'group',label:modLabel(m),fill:colorOf(m.name),size:20}}); } }
+    const card={data:{id,ref,kind:'card',label:linLabel(id),fill,size:20},position:{x,y},classes:l===0?'center':''}; if(gid) card.data.parent=gid; els.push(card);
+    for(const dir of l===0?[-1,1]:[l<0?-1:1]){ const h=linHidden(id,dir); if(h){ const e={data:{id:'x:'+dir+':'+id,kind:'exp',of:id,dir,label:'+'+fmt(h),size:20},position:{x:x+dir*(l===0?126:118),y}}; if(gid) e.data.parent=gid; els.push(e); } }
   });
-  lin.lv.forEach((l,id)=>{ const it=S.byId.get(id);
-    for(const o of it.outs){ const lo=lin.lv.get(o.id); if(lo===undefined) continue;
-      els.push({data:{id:id+'>'+o.id,source:id,target:o.id,width:1.3,thin:1},classes:'lin '+(lo<=0?'eup':'edn')}); } });
+  lin.lv.forEach((l,id)=>{ for(const o of nbs(id,1)){ const lo=lin.lv.get(o); if(lo===undefined||(mods&&lo!==l+1)) continue; /* skip side-links inside a column of modules: they cross everything */
+      els.push({data:{id:id+'>'+o,source:id,target:o,width:1.3,thin:1},classes:'lin '+(lo<=0?'eup':'edn')}); } });
   return els;
 }
-function linFull(){ const lin=S.focus; if(!lin.full){ const tr=traceItems(S.byId.get(lin.id),99,1e9); lin.full={up:tr.up.size,dn:tr.dn.size}; } return lin.full; }
+function linFull(){ const lin=S.focus; if(!lin.full){ if(isMod(lin.id)){ const t=modTrace(lin.id.slice(2),99); lin.full={up:t.up.size,dn:t.dn.size}; } else { const tr=traceItems(S.byId.get(lin.id),99,1e9); lin.full={up:tr.up.size,dn:tr.dn.size}; } } return lin.full; }
 function linRecentre(id){ const lin=S.focus; const i=lin.crumbs.indexOf(id); const crumbs=i>=0?lin.crumbs.slice(0,i+1):lin.crumbs.concat(id); linNew(id,crumbs.slice(-12)); S.sel=id; render(); }
 function lineView(){ if(S.focus) return 'focus'; if(S.moduleFilter) return 'module'; return S.g.items.length<=LINE_LIMIT?'all':'overview'; }
 
@@ -652,6 +664,7 @@ function traceItems(center,depth,cap){
 function itemNode(it,heat,maxL){const deg=it.ins.length+it.outs.length;return {data:{id:it.id,ref:it.id,kind:'item',label:itemLabel(it),fill:heat?heatColor(it.formula.length/maxL):colorOf(it.module),size:14+Math.min(22,deg*2.5)}};}
 
 function elements(){
+  if(S.focus) return linElements();
   const els=[],heat=$('heat').checked,showLists=$('lists').checked,g=S.g;
   if(S.mode==='module'){
     const lens=new Map(); g.mods.forEach(m=>{let t=0;m.items.forEach(it=>t+=it.formula.length);lens.set(m.key,t);}); const maxL=maxOf(lens.values(),x=>x);
@@ -671,7 +684,7 @@ function elements(){
     g.items.forEach(it=>{ if(it.mk===S.moduleFilter){ ids.add(it.id); } });
     if(ids.size<LINE_LIMIT) [...ids].forEach(id=>{ const it=S.byId.get(id); for(const x of it.ins){ if(ids.size>=LINE_LIMIT) break; ids.add(x.id);} for(const x of it.outs){ if(ids.size>=LINE_LIMIT) break; ids.add(x.id);} });
     set=[...ids].map(id=>S.byId.get(id)); }
-  else return linElements();
+  else return linElements(); /* unreachable: handled above */
   const ids=new Set(set.map(i=>i.id)), maxL=maxOf(set,i=>i.formula.length);
   const grouped=$('groupMods').checked;
   if(grouped){ const seenG=new Set(); for(const it of set){ if(!seenG.has(it.mk)){ seenG.add(it.mk); const m=g.mods.get(it.mk); els.push({data:{id:'g:'+it.mk,ref:it.mk,kind:'group',label:modLabel(m),fill:colorOf(m.name),size:20}}); } } }
@@ -693,21 +706,21 @@ function render(){
   $('legend').innerHTML=$('heat').checked?'<span><i style="background:'+heatColor(0)+'"></i>Short formulas</span><span><i style="background:'+heatColor(.6)+'"></i>Long</span><span><i style="background:'+heatColor(1)+'"></i>Longest</span>'
     :LEGEND.map(([k,l])=>`<span><i style="background:${PALETTE[k]}"></i>${l}</span>`).join('')+($('lists').checked?`<span><i style="background:${PALETTE.LIST};border-radius:2px"></i>List</span>`:'');
   updateBanner(nodes);
-  if(S.mode==='line'&&S.focus){ const f=linFull(); showDetails(cy.getElementById(S.focus.id),f.up,f.dn); if(cy.nodes().length>40) cy.animate({center:{eles:cy.getElementById(S.focus.id)},zoom:Math.max(cy.zoom(),.75)},{duration:350}); }
+  if(S.focus){ const f=linFull(); showDetails(cy.getElementById(S.focus.id),f.up,f.dn); if(cy.nodes().length>40) cy.animate({center:{eles:cy.getElementById(S.focus.id)},zoom:Math.max(cy.zoom(),.75)},{duration:350}); }
   else if(S.sel){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); else {S.sel=null;showDetails(null);} }
 }
 function updateBanner(nodes){
   const b=$('banner'); let html='';
-  if(S.mode==='line'&&S.focus){ const lin=S.focus;
-    const cr=lin.crumbs.map((id,i)=>i===lin.crumbs.length-1?`<b>${esc(itemLabel(S.byId.get(id)))}</b>`:`<a data-crumb="${i}">${esc(itemLabel(S.byId.get(id)))}</a>`).join('<span class="muted">›</span>');
-    let upMore=false,dnMore=false; lin.lv.forEach((l,id)=>{ const it=S.byId.get(id); if(l<=0&&linHidden(it,-1)) upMore=true; if(l>=0&&linHidden(it,1)) dnMore=true; });
+  if(S.focus){ const lin=S.focus;
+    const cr=lin.crumbs.map((id,i)=>i===lin.crumbs.length-1?`<b>${esc(linLabel(id))}</b>`:`<a data-crumb="${i}">${esc(linLabel(id))}</a>`).join('<span class="muted">›</span>');
+    let upMore=false,dnMore=false; lin.lv.forEach((l,id)=>{ if(l<=0&&linHidden(id,-1)) upMore=true; if(l>=0&&linHidden(id,1)) dnMore=true; });
     html=`<span class="crumbs">${cr}</span><span class="spacer"></span><span class="grp"><button id="linUp" ${upMore?'':'disabled style="opacity:.4"'} title="Show one more step of inputs">◀ +1 step</button><button id="linDn" ${dnMore?'':'disabled style="opacity:.4"'} title="Show one more step of outputs">+1 step ▶</button><button id="linExit" title="Back to the full graph">Exit</button></span>`; }
   else if(S.mode==='line'&&S.moduleFilter){ html='Showing <b>'+esc(modLabel(S.g.mods.get(S.moduleFilter)))+'</b> with direct inputs and outputs'; }
-  const linkOnly=S.mode==='module'&&S.linkNote;
+  const linkOnly=!S.focus&&S.mode==='module'&&S.linkNote;
   if(linkOnly) html=`Showing the strongest ${fmt(MOD_EDGE_MAX)} of ${fmt(S.linkNote.total)} module links to keep things fast. Tracing still follows every link. <button id="allLinks">Show all links</button>`;
   b.style.display=html?'flex':'none'; $('bannerText').innerHTML=html; $('bannerBack').style.display=S.history.length&&!linkOnly?'':'none'; $('bannerClose').style.display=linkOnly?'none':'';
   if(linkOnly) $('allLinks').onclick=()=>{ S.showAllLinks=true; render(); };
-  const lineage=S.mode==='line'&&S.focus; $('bannerBack').style.display=lineage?'none':$('bannerBack').style.display; $('bannerClose').style.display=lineage?'none':$('bannerClose').style.display;
+  const lineage=!!S.focus; $('bannerBack').style.display=lineage?'none':$('bannerBack').style.display; $('bannerClose').style.display=lineage?'none':$('bannerClose').style.display;
   if(lineage){
     b.querySelectorAll('[data-crumb]').forEach(a=>a.onclick=()=>linRecentre(S.focus.crumbs[+a.dataset.crumb]));
     $('linUp').onclick=()=>{ if(linGrow(-1)) render(); }; $('linDn').onclick=()=>{ if(linGrow(1)) render(); };
@@ -722,10 +735,12 @@ function onTap(node){
   if(k==='card'){ if(node.id()===S.focus.id){ const f=linFull(); showDetails(node,f.up,f.dn); return; } return linRecentre(node.id()); }
   if(node.data('kind')==='group'){ const key=node.data('ref'); const {up,dn}=modTrace(key,+$('depth').value); showDetails(node,up.size,dn.size); return; }
   if(node.data('kind')==='item'&&S.mode==='line'){ return focusItem(node.id()); }
+  if(node.data('kind')==='module'){ return focusModule(node.data('ref')); }
   selectInPlace(node);
 }
 function pushHistory(){ S.history.push({moduleFilter:S.moduleFilter}); if(S.history.length>30) S.history.shift(); }
-function focusItem(id){ if(S.focus) return linRecentre(id); pushHistory(); linNew(id); S.sel=id; render(); }
+function focusItem(id){ if(S.focus&&!isMod(S.focus.id)) return linRecentre(id); pushHistory(); linNew(id); S.sel=id; render(); }
+function focusModule(key){ const id='m:'+key; if(S.focus&&isMod(S.focus.id)) return linRecentre(id); pushHistory(); linNew(id); S.sel=id; render(); }
 function cyTrace(node,depth){
   const up=new Set(),dn=new Set();
   const walk=(down,set)=>{ let fr=[node],d=0; while(fr.length&&d<depth){ const nx=[]; fr.forEach(n=>{ (down?n.outgoers('node'):n.incomers('node')).forEach(m=>{ if(down&&m.data('kind')==='list') return; if(m.id()!==node.id()&&!set.has(m.id())){set.add(m.id());nx.push(m);} }); }); fr=nx; d++; } };
@@ -774,7 +789,7 @@ function stopPulse(){ if(S.raf) cancelAnimationFrame(S.raf); S.raf=0; }
 /* ---------- Navigation ---------- */
 function setSeg(id,v){ document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); }
 function drill(mk){ pushHistory(); S.mode='line'; S.moduleFilter=mk; S.focus=null; S.sel=null; setSeg('modeSeg','line'); render(); }
-function goToModule(key){ if(S.mode!=='module'){ S.mode='module'; S.focus=null; S.moduleFilter=null; setSeg('modeSeg','module'); render(); } const n=cy.getElementById('m:'+key); if(n.length) selectInPlace(n); }
+function goToModule(key){ if(S.mode!=='module'){ S.mode='module'; S.focus=null; S.moduleFilter=null; S.history=[]; setSeg('modeSeg','module'); } focusModule(key); }
 function goToItem(id){
   if(S.mode!=='line'){ S.mode='line'; S.focus=null; S.moduleFilter=null; S.history=[]; setSeg('modeSeg','line'); }
   focusItem(id);
@@ -785,6 +800,11 @@ function goTo(id){ if(id.startsWith('m:')) return goToModule(id.slice(2)); if(id
 const CHIP_MAX=60;
 function chip(id,label,cls,sub){return `<span class="chip ${cls||''}" data-go="${esc(id)}" title="${esc(label)}">${esc(label)}${sub?`<small>${esc(sub)}</small>`:''}</span>`;}
 function chipList(arr,fn){ const shown=arr.slice(0,CHIP_MAX).map(fn).join(''); return shown+(arr.length>CHIP_MAX?`<span class="chip">+${fmt(arr.length-CHIP_MAX)} more</span>`:''); }
+function modRows(pairs){
+  if(!pairs.length) return '';
+  pairs.sort((a,b)=>b[1]-a[1]);
+  return `<details class="cg" open><summary><span>Sorted by number of references</span><span class="n">${pairs.length}</span></summary>${pairs.slice(0,200).map(([k,w])=>{ const mm=S.g.mods.get(k); return `<div class="ci" data-go="m:${esc(k)}" data-hover="m:${esc(k)}"><span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:${colorOf(mm.name)}"></i>${esc(modLabel(mm))}</span><span class="muted">${fmt(w)} ref${w===1?'':'s'}</span></div>`; }).join('')}${pairs.length>200?`<div class="ci muted">…${fmt(pairs.length-200)} more</div>`:''}</details>`;
+}
 /* connections grouped by module, biggest group first */
 function connGroups(arr,cls){
   if(!arr.length) return '';
@@ -799,7 +819,7 @@ function showDetails(node,nu,nd,truncated){
   if(!node||!node.length){ el.innerHTML=`<p class="muted">Tap any node to trace what feeds it (<span class="u">amber</span>) and what it feeds (<span class="d">green</span>). In big models, tapping a line item opens its own lineage view.</p>`+statsHTML(); return; }
   const kind=node.data('kind'), dv=$('depth').value, depthTxt=+dv>=99?'full chain':dv+' hop'+(dv==='1'?'':'s');
   const counts=`<div class="counts"><span class="u"><b>${fmt(nu)}</b> upstream</span><span class="d"><b>${fmt(nd)}</b> downstream</span><span class="muted">${depthTxt}${truncated?' (capped)':''}</span></div>`;
-  if(kind==='item'||kind==='card'){
+  if((kind==='item'||kind==='card')&&!isMod(node.id())){
     const it=S.byId.get(node.id()), full=kind==='card'||S.focus;
     const cnt=full?`<div class="counts"><span class="u"><b>${fmt(nu)}</b> upstream</span><span class="d"><b>${fmt(nd)}</b> downstream</span><span class="muted">full chain</span></div>`:counts;
     el.innerHTML=`<div class="title">${esc(itemLabel(it))}</div><div class="sub"><span class="chip" data-go="m:${esc(it.mk)}">${esc(modLabel(S.g.mods.get(it.mk)))}</span></div>${cnt}
@@ -809,13 +829,14 @@ function showDetails(node,nu,nd,truncated){
      <h3>Formula</h3>${it.formula?(isAnon()?'<p class="muted">Hidden while anonymised.</p>':`<pre class="formula">${esc(it.formula)}</pre>`):'<p class="muted">No formula (input or data line item).</p>'}
      <h3>Properties</h3><div class="kv"><div>Format</div><div>${esc(it.format||'—')}</div><div>Applies to</div><div>${esc(isAnon()?(it.lists.map(listLabel).join(', ')||'—'):(it.appliesTo||'—'))}</div><div>Length</div><div>${fmt(it.formula.length)} characters</div></div>
 `;
-  } else if(kind==='module'||kind==='group'){
+  } else if(kind==='module'||kind==='group'||kind==='card'){
     const m=S.g.mods.get(node.data('ref')); const ups=[...(S.g.modIn.get(m.key)||[])], dns=[...(S.g.modOut.get(m.key)||new Map()).keys()];
     const items=[...m.items.values()];
     el.innerHTML=`<div class="title">${esc(modLabel(m))}</div><div class="sub">${fmt(m.size)} line items · ${fmt(items.filter(i=>i.formula).length)} with formulas</div>${counts}
      <button id="drill" class="primary" style="margin:8px 0 4px">Show this module's line items</button>
-     <h3>Feeds from (${ups.length})</h3><div class="chips">${chipList(ups,k=>chip('m:'+k,modLabel(S.g.mods.get(k)),'up'))||'<span class="muted">None</span>'}</div>
-     <h3>Feeds into (${dns.length})</h3><div class="chips">${chipList(dns,k=>chip('m:'+k,modLabel(S.g.mods.get(k)),'dn'))||'<span class="muted">None</span>'}</div>
+     <h3>Feeds from (${ups.length})</h3>${modRows(ups.map(k=>[k,(S.g.modOut.get(k)||new Map()).get(m.key)||0]))||'<p class="muted" style="margin:0">None</p>'}
+     <h3>Feeds into (${dns.length})</h3>${modRows(dns.map(k=>[k,(S.g.modOut.get(m.key)||new Map()).get(k)||0]))||'<p class="muted" style="margin:0">None</p>'}
+     <p class="note">Click a module to centre on it. Hover to find it in the picture.</p>
      ${m.lists.size?`<h3>Dimensions</h3><div class="chips">${[...m.lists].map(l=>`<span class="chip">${esc(listLabel(l))}</span>`).join('')}</div>`:''}
      <h3>Line items</h3>${items.slice(0,300).map(i=>`<div class="row" data-go="${i.id}"><span>${esc(itemLabel(i))}</span><span class="muted">${i.ins.length} in · ${i.outs.length} out</span></div>`).join('')}${items.length>300?`<p class="note">…and ${fmt(items.length-300)} more. Use search to find one.</p>`:''}`;
     $('drill').onclick=()=>drill(m.key);
@@ -922,7 +943,7 @@ function pick(x){ $('results').style.display='none'; $('search').value=x.label; 
 /* ---------- Controls ---------- */
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{ if(!S.g) return; S.mode=b.dataset.v; S.moduleFilter=null; S.focus=null; S.sel=null; S.history=[]; setSeg('modeSeg',S.mode); render(); showDetails(null); });
 document.querySelectorAll('#layoutSeg button').forEach(b=>b.onclick=()=>{ S.layout=b.dataset.v; setSeg('layoutSeg',S.layout); if(S.g&&cy) runLayout(); });
-$('depth').onchange=()=>{ if(!S.g) return; if(S.mode==='line'&&S.focus){ linNew(S.focus.id,S.focus.crumbs); render(); } else if(S.sel){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
+$('depth').onchange=()=>{ if(!S.g) return; if(S.focus){ linNew(S.focus.id,S.focus.crumbs); render(); } else if(S.sel){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
 $('linkStyle').onchange=()=>{ if(cy){ cy.style(styleFor(S.big)); if(cy.edges('.eup, .edn').length) startPulse(); else stopPulse(); } };
 $('isolate').onchange=()=>{ if(S.sel&&!S.focus){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
 ['heat','lists','groupMods'].forEach(id=>$(id).onchange=()=>{ if(S.g) render(); });
