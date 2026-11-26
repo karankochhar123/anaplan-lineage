@@ -366,6 +366,11 @@ function edgeStyles(big){
     {selector:'edge[kind="list"]',style:{'line-style':'dotted','opacity':mode==='hidden'?0:(mode==='bold'?.5:.2)}}
   ];
 }
+/* Traced links follow the Links setting too: calm solid lines unless 'bold' is chosen */
+function traceLook(big){
+  if($('linkStyle').value==='bold') return {'width':big?1.6:2.4,'opacity':.95,'arrow-scale':.75,'line-style':'dashed','line-dash-pattern':[6,6]};
+  return {'width':big?.8:1.2,'opacity':big?.45:.7,'arrow-scale':.5,'line-style':'solid'};
+}
 function styleFor(big){return [
  {selector:'node',style:{'background-color':'data(fill)','label':'data(label)','color':'#e7ebf5','font-size':10,'text-valign':'bottom','text-margin-y':4,'width':'data(size)','height':'data(size)','text-outline-color':'#0d1220','text-outline-width':2,'min-zoomed-font-size':big?9:6,'text-wrap':'ellipsis','text-max-width':140,'border-width':0}},
  {selector:'node[kind="list"]',style:{'shape':'round-rectangle','color':'#9aa4bd','font-style':'italic'}},
@@ -377,8 +382,8 @@ function styleFor(big){return [
  {selector:'node.sel',style:{'border-width':4,'border-color':'#ffffff','z-index':10}},
  {selector:'node.up',style:{'border-width':3,'border-color':'#f5b942'}},
  {selector:'node.dn',style:{'border-width':3,'border-color':'#2fd3a7'}},
- {selector:'edge.eup',style:{'line-color':'#f5b942','target-arrow-color':'#f5b942','width':big?1:2.2,'opacity':big?.5:.95,'arrow-scale':big?.5:.7,'line-style':big?'solid':'dashed','line-dash-pattern':[6,6],'z-index':9}},
- {selector:'edge.edn',style:{'line-color':'#2fd3a7','target-arrow-color':'#2fd3a7','width':big?1:2.2,'opacity':big?.5:.95,'arrow-scale':big?.5:.7,'line-style':big?'solid':'dashed','line-dash-pattern':[6,6],'z-index':9}},
+ {selector:'edge.eup',style:Object.assign({'line-color':'#f5b942','target-arrow-color':'#f5b942','z-index':9},traceLook(big))},
+ {selector:'edge.edn',style:Object.assign({'line-color':'#2fd3a7','target-arrow-color':'#2fd3a7','z-index':9},traceLook(big))},
  {selector:'node.hit',style:{'border-width':4,'border-color':'#6c8cff'}}
 ];}
 function makeCy(els){
@@ -605,7 +610,7 @@ function clearSel(){
   cy.elements().removeClass('sel up dn eup edn faded hidden hit'); S.sel=null; showDetails(null);
   if(hadHidden) runLayout(cy.elements());
 }
-function startPulse(){ stopPulse(); if(matchMedia('(prefers-reduced-motion: reduce)').matches) return; const hl=cy.edges('.eup, .edn'); if(!hl.length||hl.length>PULSE_MAX) return; let off=0;
+function startPulse(){ stopPulse(); if($('linkStyle').value!=='bold'||matchMedia('(prefers-reduced-motion: reduce)').matches) return; const hl=cy.edges('.eup, .edn'); if(!hl.length||hl.length>PULSE_MAX) return; let off=0;
   const tick=()=>{ off=(off+0.6)%120; hl.style('line-dash-offset',-off); S.raf=requestAnimationFrame(tick); }; S.raf=requestAnimationFrame(tick); }
 function stopPulse(){ if(S.raf) cancelAnimationFrame(S.raf); S.raf=0; }
 
@@ -749,7 +754,7 @@ function pick(x){ $('results').style.display='none'; $('search').value=x.label; 
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{ if(!S.g) return; S.mode=b.dataset.v; S.moduleFilter=null; S.focus=null; S.sel=null; S.history=[]; setSeg('modeSeg',S.mode); render(); showDetails(null); });
 document.querySelectorAll('#layoutSeg button').forEach(b=>b.onclick=()=>{ S.layout=b.dataset.v; setSeg('layoutSeg',S.layout); if(S.g&&cy) runLayout(); });
 $('depth').onchange=()=>{ if(!S.g) return; if(S.mode==='line'&&S.focus) render(); else if(S.sel){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
-$('linkStyle').onchange=()=>{ if(cy){ cy.style(styleFor(S.big)); } };
+$('linkStyle').onchange=()=>{ if(cy){ cy.style(styleFor(S.big)); if(cy.edges('.eup, .edn').length) startPulse(); else stopPulse(); } };
 $('isolate').onchange=()=>{ if(S.sel&&!S.focus){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
 ['heat','lists'].forEach(id=>$(id).onchange=()=>{ if(S.g) render(); });
 $('anon').onchange=()=>{ if(!S.g) return; buildSearch(); render(); renderHealth(); renderInsights(); if(!S.sel&&!S.focus) showDetails(null); };
