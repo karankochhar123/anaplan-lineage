@@ -44,6 +44,8 @@ body.busy #busy{display:flex}
 #drop{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(108,140,255,.15);border:2px dashed var(--accent);border-radius:var(--radius);font-size:18px;z-index:8}
 #banner{position:absolute;top:10px;left:10px;right:10px;display:none;gap:8px;align-items:center;background:rgba(20,27,45,.94);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;z-index:4}
 #banner button{padding:4px 10px}
+#banner > .spacer{display:none}
+#bannerText{display:flex;flex:1;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
 #legend{position:absolute;left:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--muted);background:rgba(13,18,32,.75);padding:6px 10px;border-radius:8px;z-index:3}
 #legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
 #zoom{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px;z-index:3}
@@ -77,6 +79,24 @@ pre.formula{background:#0b1020;border:1px solid var(--line);border-radius:8px;pa
 .row:last-child{border:0}
 .row span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .note{font-size:12px;color:var(--muted);margin-top:6px}
+#tip{position:absolute;z-index:7;pointer-events:none;display:none;max-width:340px;background:rgba(20,27,45,.97);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#tip b{display:block;font-size:13px}
+#tip code{display:block;margin-top:6px;white-space:pre-wrap;word-break:break-word;font:11.5px/1.45 ui-monospace,Menlo,monospace;color:#cfe0ff}
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}
+.crumbs a{color:var(--muted);cursor:pointer;text-decoration:none;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crumbs a:hover{color:#fff;text-decoration:underline}
+.crumbs b{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#banner .grp{display:flex;gap:6px;flex:none}
+details.cg{border:1px solid var(--line);border-radius:8px;margin:0 0 6px;background:var(--panel2)}
+details.cg summary{cursor:pointer;padding:6px 10px;font-size:13px;display:flex;gap:8px;align-items:center;list-style:none}
+details.cg summary::-webkit-details-marker{display:none}
+details.cg summary::before{content:'▸';color:var(--muted);font-size:11px;transition:transform .15s}
+details.cg[open] summary::before{transform:rotate(90deg)}
+details.cg summary .n{margin-left:auto;color:var(--muted);font-size:12px}
+details.cg summary i{width:8px;height:8px;border-radius:50%;flex:none}
+details.cg .ci{padding:5px 10px 5px 26px;font-size:13px;cursor:pointer;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+details.cg .ci:hover{background:#222c45}
+details.cg .ci span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rank{display:grid;grid-template-columns:26px 1fr auto;gap:2px 8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
 .rank:hover .nm{color:#fff;text-decoration:underline}
 .rank .no{color:var(--muted);font-size:12px;text-align:right}
@@ -151,6 +171,7 @@ pre.formula{background:#0b1020;border:1px solid var(--line);border-radius:8px;pa
   </div>
   <div id="busy" class="overlay"><div class="spin"></div><div id="busyText">Working…</div></div>
   <div id="drop">Drop CSV to map your model</div>
+  <div id="tip"></div>
   <div id="legend" style="display:none"></div>
   <div id="zoom" style="display:none"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zfit" aria-label="Fit to screen">⤢</button></div>
  </div>
@@ -390,19 +411,38 @@ function styleFor(big){return [
    'label':'data(label)','text-valign':'top','text-halign':'center','text-margin-y':-6,'font-size':12,'font-weight':600,'color':'#c9d2ea','text-outline-width':0,
    'text-background-color':'#0d1220','text-background-opacity':.9,'text-background-padding':3,'text-background-shape':'round-rectangle','text-max-width':260,'padding':18,'min-zoomed-font-size':5,'corner-radius':10}},
  {selector:'node[kind="group"].faded',style:{'opacity':.25}},
- {selector:'node[kind="group"].chain',style:{'border-opacity':1,'border-width':1.6}}
+ {selector:'node[kind="group"].chain',style:{'border-opacity':1,'border-width':1.6}},
+ {selector:'node[kind="card"]',style:{'shape':'round-rectangle','width':184,'height':30,'background-color':'#1b2439','border-width':1.5,'border-color':'data(fill)','label':'data(label)','text-valign':'center','text-halign':'center','text-margin-y':0,'font-size':11,'color':'#e7ebf5','text-outline-width':0,'text-max-width':168,'text-wrap':'ellipsis','min-zoomed-font-size':4}},
+ {selector:'node[kind="card"].center',style:{'background-color':'#2a3760','border-color':'#ffffff','border-width':2.5,'font-weight':600,'width':200,'height':36,'font-size':12}},
+ {selector:'node[kind="card"].hit',style:{'border-color':'#6c8cff','border-width':3}},
+ {selector:'node[kind="exp"]',style:{'shape':'round-rectangle','width':38,'height':20,'background-color':'#2a3760','border-width':1,'border-color':'#6c8cff','label':'data(label)','font-size':10,'color':'#dfe6ff','text-valign':'center','text-halign':'center','text-margin-y':0,'text-outline-width':0,'min-zoomed-font-size':4}},
+ {selector:'node[kind="exp"]:active, node[kind="card"]:active',style:{'overlay-opacity':.12,'overlay-color':'#6c8cff'}},
+ {selector:'edge.lin',style:{'curve-style':'taxi','taxi-direction':'horizontal','taxi-turn':'50%','taxi-turn-min-distance':8,'target-arrow-shape':'triangle'}}
 ];}
+function showTip(n,p){
+  const t=$('tip'); let html='';
+  if(n.data('kind')==='exp'){ const it=S.byId.get(n.data('of')); html=`Show ${n.data('label').slice(1)} more ${n.data('dir')<0?'inputs':'items that use it'}`; }
+  else { const it=S.byId.get(n.id()); if(!it) return; html=`<b>${esc(itemLabel(it))}</b><span class="muted">${esc(modLabel(S.g.mods.get(it.mk)))} · ${it.ins.length} in · ${it.outs.length} out</span>${it.formula&&!isAnon()?`<code>${esc(it.formula.length>280?it.formula.slice(0,280)+'…':it.formula)}</code>`:''}${n.data('kind')==='card'&&n.id()!==S.focus.id?'<div class="note">Click to centre on this</div>':''}`; }
+  t.innerHTML=html; t.style.display='block';
+  const W=$('stage').clientWidth, H=$('stage').clientHeight; let x=p.x+14, y=p.y+14;
+  if(x+t.offsetWidth>W-8) x=p.x-t.offsetWidth-14; if(y+t.offsetHeight>H-8) y=H-t.offsetHeight-8;
+  t.style.left=Math.max(6,x)+'px'; t.style.top=Math.max(6,y)+'px';
+}
+function hideTip(){ $('tip').style.display='none'; }
 function makeCy(els){
   stopPulse(); if(cy) cy.destroy();
   const nodes=els.filter(e=>!e.data.source&&e.data.kind!=='group').length, edges=els.filter(e=>e.data.source).length, big=nodes>500||edges>1500; S.big=big;
-  cy=cytoscape({container:$('cy'),elements:els,style:styleFor(big),minZoom:.03,maxZoom:3,
+  cy=cytoscape({container:$('cy'),elements:els,layout:{name:'preset'},style:styleFor(big),minZoom:.03,maxZoom:3,
     textureOnViewport:big,hideEdgesOnViewport:big,motionBlur:false,pixelRatio:big?1:'auto',boxSelectionEnabled:false});
   cy.on('tap','node',e=>onTap(e.target));
+  cy.on('mouseover','node[kind="card"], node[kind="item"], node[kind="exp"]',e=>showTip(e.target,e.renderedPosition));
+  cy.on('mouseout','node',hideTip); cy.on('viewport',hideTip);
   cy.on('tap',e=>{ if(e.target===cy&&S.sel&&!S.focus) clearSel(); });
   return {nodes,edges};
 }
 function layoutOpts(n,e){
   const anim=n<350;
+  if(S.mode==='line'&&S.focus) return {name:'preset',fit:true,padding:50,animate:false};
   if(S.mode==='module'&&S.layout==='flow'&&n>150) return {name:'preset',positions:discoPositions(),fit:true,padding:40,animate:false};
   if(S.mode==='line'&&cy.nodes('[kind="group"]').length){
     if(S.layout==='flow') return {name:'preset',positions:groupedPositions(),fit:true,padding:40,animate:false};
@@ -553,6 +593,52 @@ function itemLabel(it){return isAnon()?anon().get(it.id):it.name;}
 function listLabel(l){return isAnon()?anon().get('l:'+l):l;}
 
 /* ---------- Views ---------- */
+/* ---------- Focused lineage view: centre item, inputs left, outputs right ---------- */
+const LIN_STEP=60, LIN_CAP=1500;
+function linNew(id,crumbs){
+  const lin={id,lv:new Map([[id,0]]),crumbs:crumbs||[id]};
+  const steps=+$('depth').value>=99?1:+$('depth').value;
+  S.focus=lin; for(let i=0;i<steps;i++){ linGrow(-1); linGrow(1); }
+  return lin;
+}
+function linHidden(it,dir){ let n=0; for(const x of (dir<0?it.ins:it.outs)) if(!S.focus.lv.has(x.id)) n++; return n; }
+function linExpand(id,dir){
+  const lin=S.focus, it=S.byId.get(id), l=lin.lv.get(id); let n=0;
+  for(const x of (dir<0?it.ins:it.outs)){ if(lin.lv.size>=LIN_CAP||n>=LIN_STEP) break; if(lin.lv.has(x.id)) continue; lin.lv.set(x.id,l+dir); n++; }
+  return n;
+}
+function linGrow(dir){
+  const lin=S.focus; let edge=0; lin.lv.forEach(v=>{ if(dir<0?v<edge:v>edge) edge=v; });
+  let added=0; for(const [id,l] of [...lin.lv]) if(l===edge) added+=linExpand(id,dir);
+  return added;
+}
+function linElements(){
+  const lin=S.focus, g=S.g, els=[], COLW=290, ROWH=38, GAPG=54;
+  const byLevel=new Map(); lin.lv.forEach((l,id)=>{ if(!byLevel.has(l)) byLevel.set(l,[]); byLevel.get(l).push(S.byId.get(id)); });
+  const ypos=new Map([[lin.id,0]]);
+  const place=l=>{ const items=byLevel.get(l); if(!items) return;
+    const inner=l<0?l+1:l-1;
+    const bary=it=>{ const nb=(l<0?it.outs:it.ins).filter(x=>lin.lv.get(x.id)===inner&&ypos.has(x.id)).map(x=>ypos.get(x.id)); return nb.length?nb.reduce((a,b)=>a+b,0)/nb.length:0; };
+    const groups=new Map(); for(const it of items){ if(!groups.has(it.mk)) groups.set(it.mk,[]); groups.get(it.mk).push([bary(it),it]); }
+    const gl=[...groups].map(([mk,arr])=>{ arr.sort((a,b)=>a[0]-b[0]); return [arr.reduce((t,x)=>t+x[0],0)/arr.length,mk,arr]; }).sort((a,b)=>a[0]-b[0]);
+    const total=gl.reduce((t,[,,arr])=>t+arr.length*ROWH,0)+GAPG*(gl.length-1); let y=-total/2;
+    for(const [,mk,arr] of gl){ for(const [,it] of arr){ ypos.set(it.id,y+ROWH/2); y+=ROWH; } y+=GAPG; } };
+  for(let l=-1;byLevel.has(l);l--) place(l);
+  for(let l=1;byLevel.has(l);l++) place(l);
+  const seenG=new Set();
+  lin.lv.forEach((l,id)=>{
+    const it=S.byId.get(id), gid='g:'+it.mk+'|'+l, x=l*COLW, y=ypos.get(id)||0;
+    if(!seenG.has(gid)){ seenG.add(gid); const m=g.mods.get(it.mk); els.push({data:{id:gid,ref:it.mk,kind:'group',label:modLabel(m),fill:colorOf(m.name),size:20}}); }
+    els.push({data:{id,ref:id,kind:'card',parent:gid,label:itemLabel(it),fill:colorOf(it.module),size:20},position:{x,y},classes:l===0?'center':''});
+    for(const dir of l===0?[-1,1]:[l<0?-1:1]){ const h=linHidden(it,dir); if(h) els.push({data:{id:'x:'+dir+':'+id,kind:'exp',of:id,dir,parent:gid,label:'+'+fmt(h),size:20},position:{x:x+dir*(l===0?126:118),y}}); }
+  });
+  lin.lv.forEach((l,id)=>{ const it=S.byId.get(id);
+    for(const o of it.outs){ const lo=lin.lv.get(o.id); if(lo===undefined) continue;
+      els.push({data:{id:id+'>'+o.id,source:id,target:o.id,width:1.3,thin:1},classes:'lin '+(lo<=0?'eup':'edn')}); } });
+  return els;
+}
+function linFull(){ const lin=S.focus; if(!lin.full){ const tr=traceItems(S.byId.get(lin.id),99,1e9); lin.full={up:tr.up.size,dn:tr.dn.size}; } return lin.full; }
+function linRecentre(id){ const lin=S.focus; const i=lin.crumbs.indexOf(id); const crumbs=i>=0?lin.crumbs.slice(0,i+1):lin.crumbs.concat(id); linNew(id,crumbs.slice(-12)); S.sel=id; render(); }
 function lineView(){ if(S.focus) return 'focus'; if(S.moduleFilter) return 'module'; return S.g.items.length<=LINE_LIMIT?'all':'overview'; }
 
 function traceItems(center,depth,cap){
@@ -585,8 +671,7 @@ function elements(){
     g.items.forEach(it=>{ if(it.mk===S.moduleFilter){ ids.add(it.id); } });
     if(ids.size<LINE_LIMIT) [...ids].forEach(id=>{ const it=S.byId.get(id); for(const x of it.ins){ if(ids.size>=LINE_LIMIT) break; ids.add(x.id);} for(const x of it.outs){ if(ids.size>=LINE_LIMIT) break; ids.add(x.id);} });
     set=[...ids].map(id=>S.byId.get(id)); }
-  else { const c=S.byId.get(S.focus.id); const tr=traceItems(c,+$('depth').value,FOCUS_CAP); S.focus.tr=tr;
-    set=[c,...[...tr.up].map(id=>S.byId.get(id)),...[...tr.dn].map(id=>S.byId.get(id))]; }
+  else return linElements();
   const ids=new Set(set.map(i=>i.id)), maxL=maxOf(set,i=>i.formula.length);
   const grouped=$('groupMods').checked;
   if(grouped){ const seenG=new Set(); for(const it of set){ if(!seenG.has(it.mk)){ seenG.add(it.mk); const m=g.mods.get(it.mk); els.push({data:{id:'g:'+it.mk,ref:it.mk,kind:'group',label:modLabel(m),fill:colorOf(m.name),size:20}}); } } }
@@ -608,28 +693,39 @@ function render(){
   $('legend').innerHTML=$('heat').checked?'<span><i style="background:'+heatColor(0)+'"></i>Short formulas</span><span><i style="background:'+heatColor(.6)+'"></i>Long</span><span><i style="background:'+heatColor(1)+'"></i>Longest</span>'
     :LEGEND.map(([k,l])=>`<span><i style="background:${PALETTE[k]}"></i>${l}</span>`).join('')+($('lists').checked?`<span><i style="background:${PALETTE.LIST};border-radius:2px"></i>List</span>`:'');
   updateBanner(nodes);
-  if(S.mode==='line'&&S.focus){ const tr=S.focus.tr; applyHighlight(S.focus.id,tr.up,tr.dn,false); showDetails(cy.getElementById(S.focus.id),tr.up.size,tr.dn.size,tr.truncated); }
+  if(S.mode==='line'&&S.focus){ const f=linFull(); showDetails(cy.getElementById(S.focus.id),f.up,f.dn); if(cy.nodes().length>40) cy.animate({center:{eles:cy.getElementById(S.focus.id)},zoom:Math.max(cy.zoom(),.75)},{duration:350}); }
   else if(S.sel){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); else {S.sel=null;showDetails(null);} }
 }
 function updateBanner(nodes){
   const b=$('banner'); let html='';
-  if(S.mode==='line'&&S.focus){ const it=S.byId.get(S.focus.id), tr=S.focus.tr;
-    html=`Lineage of <b>${esc(itemLabel(it))}</b> · <span class="u">${fmt(tr.up.size)} up</span> · <span class="d">${fmt(tr.dn.size)} down</span>${tr.truncated?` · <span class="muted">showing first ${fmt(FOCUS_CAP)}, narrow the trace depth for more detail</span>`:''}`; }
+  if(S.mode==='line'&&S.focus){ const lin=S.focus;
+    const cr=lin.crumbs.map((id,i)=>i===lin.crumbs.length-1?`<b>${esc(itemLabel(S.byId.get(id)))}</b>`:`<a data-crumb="${i}">${esc(itemLabel(S.byId.get(id)))}</a>`).join('<span class="muted">›</span>');
+    let upMore=false,dnMore=false; lin.lv.forEach((l,id)=>{ const it=S.byId.get(id); if(l<=0&&linHidden(it,-1)) upMore=true; if(l>=0&&linHidden(it,1)) dnMore=true; });
+    html=`<span class="crumbs">${cr}</span><span class="spacer"></span><span class="grp"><button id="linUp" ${upMore?'':'disabled style="opacity:.4"'} title="Show one more step of inputs">◀ +1 step</button><button id="linDn" ${dnMore?'':'disabled style="opacity:.4"'} title="Show one more step of outputs">+1 step ▶</button><button id="linExit" title="Back to the full graph">Exit</button></span>`; }
   else if(S.mode==='line'&&S.moduleFilter){ html='Showing <b>'+esc(modLabel(S.g.mods.get(S.moduleFilter)))+'</b> with direct inputs and outputs'; }
   const linkOnly=S.mode==='module'&&S.linkNote;
   if(linkOnly) html=`Showing the strongest ${fmt(MOD_EDGE_MAX)} of ${fmt(S.linkNote.total)} module links to keep things fast. Tracing still follows every link. <button id="allLinks">Show all links</button>`;
   b.style.display=html?'flex':'none'; $('bannerText').innerHTML=html; $('bannerBack').style.display=S.history.length&&!linkOnly?'':'none'; $('bannerClose').style.display=linkOnly?'none':'';
   if(linkOnly) $('allLinks').onclick=()=>{ S.showAllLinks=true; render(); };
+  const lineage=S.mode==='line'&&S.focus; $('bannerBack').style.display=lineage?'none':$('bannerBack').style.display; $('bannerClose').style.display=lineage?'none':$('bannerClose').style.display;
+  if(lineage){
+    b.querySelectorAll('[data-crumb]').forEach(a=>a.onclick=()=>linRecentre(S.focus.crumbs[+a.dataset.crumb]));
+    $('linUp').onclick=()=>{ if(linGrow(-1)) render(); }; $('linDn').onclick=()=>{ if(linGrow(1)) render(); };
+    $('linExit').onclick=()=>{ const h=S.history.pop(); S.focus=null; S.sel=null; S.moduleFilter=h?h.moduleFilter:null; render(); showDetails(null); };
+  }
 }
 
 /* ---------- Selection ---------- */
 function onTap(node){
+  const k=node.data('kind');
+  if(k==='exp'){ linExpand(node.data('of'),node.data('dir')); render(); return; }
+  if(k==='card'){ if(node.id()===S.focus.id){ const f=linFull(); showDetails(node,f.up,f.dn); return; } return linRecentre(node.id()); }
   if(node.data('kind')==='group'){ const key=node.data('ref'); const {up,dn}=modTrace(key,+$('depth').value); showDetails(node,up.size,dn.size); return; }
-  if(node.data('kind')==='item'&&S.mode==='line'&&lineView()!=='all'){ return focusItem(node.id()); }
+  if(node.data('kind')==='item'&&S.mode==='line'){ return focusItem(node.id()); }
   selectInPlace(node);
 }
-function pushHistory(){ S.history.push({focus:S.focus?{id:S.focus.id}:null,moduleFilter:S.moduleFilter}); if(S.history.length>30) S.history.shift(); }
-function focusItem(id){ pushHistory(); S.focus={id}; S.sel=id; render(); }
+function pushHistory(){ S.history.push({moduleFilter:S.moduleFilter}); if(S.history.length>30) S.history.shift(); }
+function focusItem(id){ if(S.focus) return linRecentre(id); pushHistory(); linNew(id); S.sel=id; render(); }
 function cyTrace(node,depth){
   const up=new Set(),dn=new Set();
   const walk=(down,set)=>{ let fr=[node],d=0; while(fr.length&&d<depth){ const nx=[]; fr.forEach(n=>{ (down?n.outgoers('node'):n.incomers('node')).forEach(m=>{ if(down&&m.data('kind')==='list') return; if(m.id()!==node.id()&&!set.has(m.id())){set.add(m.id());nx.push(m);} }); }); fr=nx; d++; } };
@@ -680,8 +776,7 @@ function setSeg(id,v){ document.querySelectorAll('#'+id+' button').forEach(b=>b.
 function drill(mk){ pushHistory(); S.mode='line'; S.moduleFilter=mk; S.focus=null; S.sel=null; setSeg('modeSeg','line'); render(); }
 function goToModule(key){ if(S.mode!=='module'){ S.mode='module'; S.focus=null; S.moduleFilter=null; setSeg('modeSeg','module'); render(); } const n=cy.getElementById('m:'+key); if(n.length) selectInPlace(n); }
 function goToItem(id){
-  if(S.mode!=='line'){ S.mode='line'; S.focus=null; S.moduleFilter=null; setSeg('modeSeg','line'); if(lineView()==='all') render(); }
-  if(lineView()==='all'){ const n=cy.getElementById(id); if(n.length){ selectInPlace(n); n.flashClass('hit',900); } return; }
+  if(S.mode!=='line'){ S.mode='line'; S.focus=null; S.moduleFilter=null; S.history=[]; setSeg('modeSeg','line'); }
   focusItem(id);
 }
 function goTo(id){ if(id.startsWith('m:')) return goToModule(id.slice(2)); if(id.startsWith('l:')){ const n=cy.getElementById(id); if(n.length) selectInPlace(n); return; } goToItem(id); }
@@ -690,19 +785,30 @@ function goTo(id){ if(id.startsWith('m:')) return goToModule(id.slice(2)); if(id
 const CHIP_MAX=60;
 function chip(id,label,cls,sub){return `<span class="chip ${cls||''}" data-go="${esc(id)}" title="${esc(label)}">${esc(label)}${sub?`<small>${esc(sub)}</small>`:''}</span>`;}
 function chipList(arr,fn){ const shown=arr.slice(0,CHIP_MAX).map(fn).join(''); return shown+(arr.length>CHIP_MAX?`<span class="chip">+${fmt(arr.length-CHIP_MAX)} more</span>`:''); }
+/* connections grouped by module, biggest group first */
+function connGroups(arr,cls){
+  if(!arr.length) return '';
+  const by=new Map(); for(const x of arr){ if(!by.has(x.mk)) by.set(x.mk,[]); by.get(x.mk).push(x); }
+  const groups=[...by].sort((a,b)=>b[1].length-a[1].length), open=groups.length<=4;
+  return groups.map(([mk,xs])=>{ const m=S.g.mods.get(mk);
+    return `<details class="cg"${open||xs.length<=3?' open':''}><summary><i style="background:${colorOf(m.name)}"></i><span>${esc(modLabel(m))}</span><span class="n ${cls}">${xs.length}</span></summary>${xs.slice(0,150).map(x=>`<div class="ci" data-go="${x.id}" data-hover="${x.id}"><span>${esc(itemLabel(x))}</span><span class="muted">${x.ins.length} in · ${x.outs.length} out</span></div>`).join('')}${xs.length>150?`<div class="ci muted">…${fmt(xs.length-150)} more</div>`:''}</details>`; }).join('');
+}
 function showDetails(node,nu,nd,truncated){
   const el=$('details');
   if(!S.g){ el.innerHTML='<p class="muted">Load a model, then tap any node to trace what feeds it (amber) and what it feeds (green).</p>'; return; }
   if(!node||!node.length){ el.innerHTML=`<p class="muted">Tap any node to trace what feeds it (<span class="u">amber</span>) and what it feeds (<span class="d">green</span>). In big models, tapping a line item opens its own lineage view.</p>`+statsHTML(); return; }
   const kind=node.data('kind'), dv=$('depth').value, depthTxt=+dv>=99?'full chain':dv+' hop'+(dv==='1'?'':'s');
   const counts=`<div class="counts"><span class="u"><b>${fmt(nu)}</b> upstream</span><span class="d"><b>${fmt(nd)}</b> downstream</span><span class="muted">${depthTxt}${truncated?' (capped)':''}</span></div>`;
-  if(kind==='item'){
-    const it=S.byId.get(node.id()), sub=x=>x.mk!==it.mk?modLabel(S.g.mods.get(x.mk)):'';
-    el.innerHTML=`<div class="title">${esc(itemLabel(it))}</div><div class="sub"><span class="chip" data-go="m:${esc(it.mk)}">${esc(modLabel(S.g.mods.get(it.mk)))}</span></div>${counts}
-     <h3>Properties</h3><div class="kv"><div>Format</div><div>${esc(it.format||'—')}</div><div>Applies to</div><div>${esc(isAnon()?(it.lists.map(listLabel).join(', ')||'—'):(it.appliesTo||'—'))}</div><div>Length</div><div>${fmt(it.formula.length)} characters</div></div>
+  if(kind==='item'||kind==='card'){
+    const it=S.byId.get(node.id()), full=kind==='card'||S.focus;
+    const cnt=full?`<div class="counts"><span class="u"><b>${fmt(nu)}</b> upstream</span><span class="d"><b>${fmt(nd)}</b> downstream</span><span class="muted">full chain</span></div>`:counts;
+    el.innerHTML=`<div class="title">${esc(itemLabel(it))}</div><div class="sub"><span class="chip" data-go="m:${esc(it.mk)}">${esc(modLabel(S.g.mods.get(it.mk)))}</span></div>${cnt}
+     <h3>Inputs (${fmt(it.ins.length)})</h3>${connGroups(it.ins,'u')||'<p class="muted" style="margin:0">None. This is a source (input or data).</p>'}
+     <h3>Used by (${fmt(it.outs.length)})</h3>${connGroups(it.outs,'d')||'<p class="muted" style="margin:0">Nothing references this line item.</p>'}
+     <p class="note">Click a row to centre on it. Hover to find it in the picture.</p>
      <h3>Formula</h3>${it.formula?(isAnon()?'<p class="muted">Hidden while anonymised.</p>':`<pre class="formula">${esc(it.formula)}</pre>`):'<p class="muted">No formula (input or data line item).</p>'}
-     <h3>Direct inputs (${fmt(it.ins.length)})</h3><div class="chips">${chipList(it.ins,x=>chip(x.id,itemLabel(x),'up',sub(x)))||'<span class="muted">None</span>'}</div>
-     <h3>Used by (${fmt(it.outs.length)})</h3><div class="chips">${chipList(it.outs,x=>chip(x.id,itemLabel(x),'dn',sub(x)))||'<span class="muted">Nothing references this line item</span>'}</div>`;
+     <h3>Properties</h3><div class="kv"><div>Format</div><div>${esc(it.format||'—')}</div><div>Applies to</div><div>${esc(isAnon()?(it.lists.map(listLabel).join(', ')||'—'):(it.appliesTo||'—'))}</div><div>Length</div><div>${fmt(it.formula.length)} characters</div></div>
+`;
   } else if(kind==='module'||kind==='group'){
     const m=S.g.mods.get(node.data('ref')); const ups=[...(S.g.modIn.get(m.key)||[])], dns=[...(S.g.modOut.get(m.key)||new Map()).keys()];
     const items=[...m.items.values()];
@@ -717,6 +823,8 @@ function showDetails(node,nu,nd,truncated){
     el.innerHTML=`<div class="title">${esc(node.data('label'))}</div><div class="sub">List (from Applies To)</div>${counts}<p class="note">Shows the modules or line items dimensioned by this list.</p>`;
   }
 }
+$('details').addEventListener('mouseover',e=>{ const r=e.target.closest('[data-hover]'); if(r&&cy){ const n=cy.getElementById(r.dataset.hover); if(n.length) n.addClass('hit'); } });
+$('details').addEventListener('mouseout',e=>{ const r=e.target.closest('[data-hover]'); if(r&&cy){ const n=cy.getElementById(r.dataset.hover); if(n.length) n.removeClass('hit'); } });
 document.addEventListener('click',e=>{
   const g=e.target.closest('[data-go]'); if(g&&(g.closest('#details')||g.closest('#health')||g.closest('#insights'))){ if(!g.closest('#details')) switchTab('details'); return goTo(g.dataset.go); }
   const m=e.target.closest('[data-mod]'); if(m) return drill(m.dataset.mod);
@@ -814,13 +922,13 @@ function pick(x){ $('results').style.display='none'; $('search').value=x.label; 
 /* ---------- Controls ---------- */
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{ if(!S.g) return; S.mode=b.dataset.v; S.moduleFilter=null; S.focus=null; S.sel=null; S.history=[]; setSeg('modeSeg',S.mode); render(); showDetails(null); });
 document.querySelectorAll('#layoutSeg button').forEach(b=>b.onclick=()=>{ S.layout=b.dataset.v; setSeg('layoutSeg',S.layout); if(S.g&&cy) runLayout(); });
-$('depth').onchange=()=>{ if(!S.g) return; if(S.mode==='line'&&S.focus) render(); else if(S.sel){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
+$('depth').onchange=()=>{ if(!S.g) return; if(S.mode==='line'&&S.focus){ linNew(S.focus.id,S.focus.crumbs); render(); } else if(S.sel){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
 $('linkStyle').onchange=()=>{ if(cy){ cy.style(styleFor(S.big)); if(cy.edges('.eup, .edn').length) startPulse(); else stopPulse(); } };
 $('isolate').onchange=()=>{ if(S.sel&&!S.focus){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
 ['heat','lists','groupMods'].forEach(id=>$(id).onchange=()=>{ if(S.g) render(); });
 $('anon').onchange=()=>{ if(!S.g) return; buildSearch(); render(); renderHealth(); renderInsights(); if(!S.sel&&!S.focus) showDetails(null); };
 $('bannerClose').onclick=()=>{ S.focus=null; S.moduleFilter=null; S.sel=null; S.history=[]; render(); showDetails(null); };
-$('bannerBack').onclick=()=>{ const h=S.history.pop(); if(!h) return; S.focus=h.focus; S.moduleFilter=h.moduleFilter; S.sel=h.focus?h.focus.id:null; render(); if(!S.focus) showDetails(null); };
+$('bannerBack').onclick=()=>{ const h=S.history.pop(); if(!h) return; S.focus=null; S.moduleFilter=h.moduleFilter; S.sel=null; render(); showDetails(null); };
 $('zin').onclick=()=>cy&&cy.animate({zoom:{level:cy.zoom()*1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
 $('zout').onclick=()=>cy&&cy.animate({zoom:{level:cy.zoom()/1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
 $('zfit').onclick=()=>cy&&cy.animate({fit:{eles:cy.elements().not('.hidden'),padding:40}},{duration:300});
