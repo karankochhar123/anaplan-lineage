@@ -6,20 +6,22 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; worker-src blob:; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src data:; form-action 'none'">
 <title>Anaplan Lineage Explorer</title>
 <style>
-:root{--bg:#0d1220;--panel:#141b2d;--panel2:#1b2439;--line:#26304a;--text:#e7ebf5;--muted:#93a0bd;--accent:#6c8cff;--up:#f5b942;--dn:#2fd3a7;--radius:10px}
+:root{--bg:#0d1220;--panel:#141b2d;--panel2:#1b2439;--line:#26304a;--text:#e7ebf5;--muted:#93a0bd;--accent:#6c8cff;--up:#f5b942;--dn:#2fd3a7;--bad:#ff6b6b;--radius:10px}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px 8px}
-.logo{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;letter-spacing:.2px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px 6px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px}
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#9ef0d4;background:rgba(47,211,167,.1);border:1px solid rgba(47,211,167,.35);padding:3px 10px;border-radius:999px}
 .spacer{flex:1}
-.toolbar{display:flex;flex-wrap:wrap;gap:8px;padding:6px 18px 10px;align-items:center}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;padding:4px 18px 10px;align-items:center}
 button,select,input[type=search],.btn{font:inherit;font-size:13px;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 11px;cursor:pointer}
 button:hover,.btn:hover,select:hover{border-color:#3a4870}
+button:disabled{opacity:.4;cursor:default}
 button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.searchwrap{position:relative;flex:1;min-width:180px;max-width:320px}
+.tlabel{font-size:12px;color:var(--muted);margin-right:-4px}
+.searchwrap{position:relative;flex:1;min-width:200px;max-width:340px}
 input[type=search]{cursor:text;width:100%}
-#results{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;max-height:360px;overflow:auto;z-index:30;display:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+#results{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;max-height:380px;overflow:auto;z-index:30;display:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 #results div{padding:7px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #results div:hover,#results div.on{background:var(--panel2)}
 #results small{color:var(--muted);margin-left:6px}
@@ -28,75 +30,91 @@ label.chk input{accent-color:var(--accent)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{border:0;border-radius:0;background:var(--panel2);color:var(--muted)}
 .seg button.on{background:#2a3760;color:#fff}
-main{display:grid;grid-template-columns:1fr 340px;gap:12px;padding:0 18px 18px;height:calc(100vh - 128px);min-height:520px}
-#stage{position:relative;background:radial-gradient(circle at 30% 20%,#17203a 0,#0d1220 70%);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.seg button:disabled{opacity:.35}
+main{display:grid;grid-template-columns:1fr 360px;gap:12px;padding:0 18px 18px;height:calc(100vh - 112px);min-height:540px}
+#stage{position:relative;background:radial-gradient(circle at 30% 20%,#17203a 0,#0d1220 70%);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column}
+#nav{display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--line);background:rgba(20,27,45,.94);font-size:13px;z-index:4}
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;flex:1}
+.crumbs a{color:var(--muted);cursor:pointer;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crumbs a:hover{color:#fff;text-decoration:underline}
+.crumbs b{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crumbs .lvl{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+#nav .grp{display:flex;gap:6px;flex-wrap:wrap}
+#nav button{padding:4px 10px}
+#trail{display:none;width:100%;font-size:12px;color:var(--muted)}
+#trail a{cursor:pointer;color:var(--muted)} #trail a:hover{color:#fff;text-decoration:underline}
+#canvas{position:relative;flex:1;min-height:0}
 #cy{position:absolute;inset:0}
 .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:12px;z-index:6}
 .overlay h2{margin:0;font-size:20px;font-weight:600}
-.overlay p{margin:0;color:var(--muted);max-width:480px}
-.overlay ol{color:var(--muted);text-align:left;margin:4px 0 6px;padding-left:20px;max-width:440px}
+.overlay p{margin:0;color:var(--muted);max-width:500px}
+.overlay ol{color:var(--muted);text-align:left;margin:4px 0 6px;padding-left:20px;max-width:460px}
 #busy{display:none;background:rgba(13,18,32,.85)}
 body.busy #busy{display:flex}
-.spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:sp 0.9s linear infinite}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:sp .9s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
-#overview{display:none}
-#overview .chips{justify-content:center;max-width:640px}
 #drop{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(108,140,255,.15);border:2px dashed var(--accent);border-radius:var(--radius);font-size:18px;z-index:8}
-#banner{position:absolute;top:10px;left:10px;right:10px;display:none;gap:8px;align-items:center;background:rgba(20,27,45,.94);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;z-index:4}
-#banner button{padding:4px 10px}
-#banner > .spacer{display:none}
-#bannerText{display:flex;flex:1;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
-#legend{position:absolute;left:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--muted);background:rgba(13,18,32,.75);padding:6px 10px;border-radius:8px;z-index:3}
+#legend{position:absolute;left:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--muted);background:rgba(13,18,32,.85);padding:6px 10px;border-radius:8px;z-index:3;max-width:calc(100% - 70px)}
+#legend span{cursor:default;white-space:nowrap}
+#legend span.click{cursor:pointer} #legend span.click:hover{color:#fff}
+#legend span.off{opacity:.35}
 #legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
 #zoom{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px;z-index:3}
 #zoom button{width:34px;height:34px;padding:0;font-size:16px}
+#tip{position:absolute;z-index:7;pointer-events:none;display:none;max-width:360px;background:rgba(20,27,45,.97);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#tip b{display:block;font-size:13px}
+#tip code{display:block;margin-top:6px;white-space:pre-wrap;word-break:break-word;font:11.5px/1.45 ui-monospace,Menlo,monospace;color:#cfe0ff}
+#tip .kv{margin-top:4px}
 aside{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;min-height:0}
 .tabs{display:flex;border-bottom:1px solid var(--line)}
-.tabs button{flex:1;border:0;border-radius:0;background:none;color:var(--muted);padding:11px}
+.tabs button{flex:1;border:0;border-radius:0;background:none;color:var(--muted);padding:11px 6px}
 .tabs button.on{color:#fff;box-shadow:inset 0 -2px 0 var(--accent)}
 .pane{padding:14px 16px;overflow:auto;flex:1}
-.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
 .stat{background:var(--panel2);border-radius:8px;padding:8px 10px}
-.stat b{display:block;font-size:20px;font-weight:600}
+.stat b{display:block;font-size:19px;font-weight:600}
 .stat span{font-size:12px;color:var(--muted)}
-h3{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:16px 0 8px}
+h3{font-size:12.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:16px 0 8px}
 h3:first-child{margin-top:0}
 .title{font-size:17px;font-weight:600;margin:0 0 2px;word-break:break-word}
-.sub{color:var(--muted);font-size:13px;margin-bottom:10px}
-.kv{display:grid;grid-template-columns:90px 1fr;gap:4px 10px;font-size:13px;margin-bottom:10px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.kv{display:grid;grid-template-columns:118px 1fr;gap:3px 10px;font-size:13px;margin-bottom:8px}
 .kv div:nth-child(odd){color:var(--muted)}
+.kv div{word-break:break-word}
 pre.formula{background:#0b1020;border:1px solid var(--line);border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-word;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#cfe0ff;margin:0}
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{font-size:12px;padding:4px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);cursor:pointer;color:var(--text);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chip.up{border-color:rgba(245,185,66,.5)}
-.chip.dn{border-color:rgba(47,211,167,.5)}
-.chip small{color:var(--muted);margin-left:4px}
-.counts{display:flex;gap:14px;font-size:13px;margin:6px 0 2px;flex-wrap:wrap}
+.chip{display:inline-block;font-size:12px;padding:3px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--text);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
+.chip.link{cursor:pointer} .chip.link:hover{border-color:#3a4870}
+.badge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.counts{display:flex;gap:14px;font-size:13px;margin:4px 0 2px;flex-wrap:wrap}
 .counts b{font-weight:600}
-.u{color:var(--up)}.d{color:var(--dn)}
+.u{color:var(--up)}.d{color:var(--dn)}.bad{color:var(--bad)}
 .muted{color:var(--muted)}
+.note{font-size:12px;color:var(--muted);margin-top:6px}
 .row{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line);cursor:pointer}
 .row:last-child{border:0}
 .row span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.note{font-size:12px;color:var(--muted);margin-top:6px}
-#tip{position:absolute;z-index:7;pointer-events:none;display:none;max-width:340px;background:rgba(20,27,45,.97);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
-#tip b{display:block;font-size:13px}
-#tip code{display:block;margin-top:6px;white-space:pre-wrap;word-break:break-word;font:11.5px/1.45 ui-monospace,Menlo,monospace;color:#cfe0ff}
-.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}
-.crumbs a{color:var(--muted);cursor:pointer;text-decoration:none;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.crumbs a:hover{color:#fff;text-decoration:underline}
-.crumbs b{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#banner .grp{display:flex;gap:6px;flex:none}
 details.cg{border:1px solid var(--line);border-radius:8px;margin:0 0 6px;background:var(--panel2)}
 details.cg summary{cursor:pointer;padding:6px 10px;font-size:13px;display:flex;gap:8px;align-items:center;list-style:none}
 details.cg summary::-webkit-details-marker{display:none}
 details.cg summary::before{content:'▸';color:var(--muted);font-size:11px;transition:transform .15s}
 details.cg[open] summary::before{transform:rotate(90deg)}
-details.cg summary .n{margin-left:auto;color:var(--muted);font-size:12px}
+details.cg summary .n{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
 details.cg summary i{width:8px;height:8px;border-radius:50%;flex:none}
 details.cg .ci{padding:5px 10px 5px 26px;font-size:13px;cursor:pointer;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
 details.cg .ci:hover{background:#222c45}
 details.cg .ci span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+details.cg .ci span:last-child{white-space:nowrap}
+.bars .br{display:grid;grid-template-columns:120px 1fr 52px;gap:8px;align-items:center;font-size:12.5px;padding:3px 0;cursor:pointer}
+.bars .br:hover span:first-child{color:#fff;text-decoration:underline}
+.bars .br span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .bt{height:8px;border-radius:4px;background:var(--panel2);overflow:hidden}
+.bars .bt i{display:block;height:100%}
+.bars .br span:last-child{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.check summary .sev{font-size:11px;border-radius:999px;padding:0 7px;margin-left:2px}
+.sev.high{background:rgba(255,107,107,.15);color:#ff9b9b}
+.sev.med{background:rgba(245,185,66,.15);color:#f5c96b}
+.sev.low{background:rgba(108,140,255,.15);color:#9fb3ff}
+.check .ci small{color:var(--muted)}
 .rank{display:grid;grid-template-columns:26px 1fr auto;gap:2px 8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
 .rank:hover .nm{color:#fff;text-decoration:underline}
 .rank .no{color:var(--muted);font-size:12px;text-align:right}
@@ -111,11 +129,10 @@ details.cg .ci span:first-child{overflow:hidden;text-overflow:ellipsis;white-spa
 #modal .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;max-width:900px;width:100%;max-height:90vh;overflow:auto}
 #modal img{width:100%;border-radius:8px;background:#0d1220;margin:10px 0}
 .err{color:#ff8a8a;font-size:13px}
-@media (max-width:900px){
+@media (max-width:980px){
  main{grid-template-columns:1fr;height:auto;padding:0 12px 12px}
- #stage{height:64vh;min-height:420px}
- .toolbar{padding:6px 12px 10px}
- header{padding:12px 12px 6px}
+ #stage{height:70vh;min-height:440px}
+ .toolbar{padding:4px 12px 10px} header{padding:12px 12px 6px}
  .searchwrap{max-width:none}
 }
 </style>
@@ -128,22 +145,27 @@ details.cg .ci span:first-child{overflow:hidden;text-overflow:ellipsis;white-spa
  </div>
  <span class="pill" title="All parsing happens in this browser tab. The page's security policy blocks network requests."><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Runs in your browser · nothing is uploaded</span>
  <span class="spacer"></span>
+ <span id="srcNote" class="muted" style="font-size:12px"></span>
 </header>
 
 <div class="toolbar">
  <label class="btn primary" for="file">Load CSV export</label>
  <input id="file" type="file" accept=".csv,.txt,.tsv" multiple hidden>
  <button id="sampleBtn">Try sample model</button>
- <div class="seg" id="modeSeg"><button data-v="module" class="on">Modules</button><button data-v="line">Line items</button></div>
- <div class="seg" id="layoutSeg"><button data-v="flow" class="on">Flow</button><button data-v="force">Force</button></div>
- <select id="depth" title="How many steps up and downstream to trace">
-  <option value="99">Trace: full chain</option><option value="1">Trace: 1 hop</option><option value="2">Trace: 2 hops</option><option value="3">Trace: 3 hops</option>
+ <span class="tlabel">Group by</span>
+ <div class="seg" id="groupSeg"><button data-v="layer" class="on" title="DISCO layer from module name prefixes (DAT, INP, SYS, CAL, OUT…)">DISCO layer</button><button data-v="section" title="Sections from divider modules such as --- REPORTING ---">Model sections</button></div>
+ <span class="tlabel">Colour by</span>
+ <select id="hl" title="Colour line items by a property">
+  <option value="">Module type</option>
+  <option value="fmt">Format</option>
+  <option value="sum">Summary method</option>
+  <option value="ts">Time scale</option>
+  <option value="ver">Versions</option>
+  <option value="effort">Calculation effort</option>
+  <option value="cells">Cell count</option>
+  <option value="len">Formula length</option>
  </select>
- <select id="linkStyle" title="How links between nodes are drawn"><option value="subtle">Links: subtle</option><option value="bold">Links: bold</option><option value="hidden">Links: on trace</option></select>
- <label class="chk" title="Line items view: draw each module as a box with its line items inside"><input type="checkbox" id="groupMods" checked>Group by module</label>
- <label class="chk"><input type="checkbox" id="isolate">Isolate</label>
- <label class="chk"><input type="checkbox" id="heat">Heat map</label>
- <label class="chk"><input type="checkbox" id="lists">Lists</label>
+ <select id="linkStyle" title="How links are drawn"><option value="subtle">Links: subtle</option><option value="bold">Links: bold</option></select>
  <label class="chk"><input type="checkbox" id="anon">Anonymise</label>
  <div class="searchwrap"><input type="search" id="search" placeholder="Search module or line item" autocomplete="off"><div id="results"></div></div>
  <button id="pngBtn">Export image</button>
@@ -151,35 +173,32 @@ details.cg .ci span:first-child{overflow:hidden;text-overflow:ellipsis;white-spa
 
 <main>
  <div id="stage">
-  <div id="cy"></div>
-  <div id="banner"><span id="bannerText"></span><span class="spacer"></span><button id="bannerBack">Back</button><button id="bannerClose">Clear</button></div>
-  <div id="empty" class="overlay">
-   <h2>See how your model really flows</h2>
-   <p>Drop one or more Anaplan line item blueprint exports here. The file is read by this page only and never leaves your device.</p>
-   <ol>
-    <li>In Anaplan, open Modules and go to the Line Items tab (or a module's Blueprint view).</li>
-    <li>Select all rows and export as CSV. Keep the Module, Line Item, Format, Formula and Applies To columns.</li>
-    <li>Drag the file here or use Load CSV export.</li>
-   </ol>
-   <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><label class="btn primary" for="file">Choose file</label><button id="sampleBtn2">Try sample model</button></div>
-   <div id="err" class="err"></div>
+  <div id="nav"><div class="crumbs" id="crumbs"></div><div class="grp" id="navBtns"></div><div id="trail"></div></div>
+  <div id="canvas">
+   <div id="cy"></div>
+   <div id="empty" class="overlay">
+    <h2>See how your model really flows</h2>
+    <p>Drop an Anaplan line item export here. It's read by this page only and never leaves your device.</p>
+    <ol>
+     <li>In Anaplan, open <b>Modules</b> and go to the <b>Line Items</b> tab.</li>
+     <li>Select all rows and export as CSV. Include every column: Format, Formula, Summary, Time Scale, Versions, Cell Count, Calculation Effort and <b>Referenced By</b>.</li>
+     <li>Drag the file here or use Load CSV export.</li>
+    </ol>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><label class="btn primary" for="file">Choose file</label><button id="sampleBtn2">Try sample model</button></div>
+    <div id="err" class="err"></div>
+   </div>
+   <div id="busy" class="overlay"><div class="spin"></div><div id="busyText">Working…</div></div>
+   <div id="drop">Drop CSV to map your model</div>
+   <div id="tip"></div>
+   <div id="legend" style="display:none"></div>
+   <div id="zoom" style="display:none"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zfit" aria-label="Fit to screen">⤢</button></div>
   </div>
-  <div id="overview" class="overlay">
-   <h2 id="ovTitle"></h2>
-   <p>That's too many to draw at once. Search for a line item to see its lineage, or open a module.</p>
-   <div class="chips" id="ovChips"></div>
-  </div>
-  <div id="busy" class="overlay"><div class="spin"></div><div id="busyText">Working…</div></div>
-  <div id="drop">Drop CSV to map your model</div>
-  <div id="tip"></div>
-  <div id="legend" style="display:none"></div>
-  <div id="zoom" style="display:none"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zfit" aria-label="Fit to screen">⤢</button></div>
  </div>
  <aside>
-  <div class="tabs"><button data-t="details" class="on">Details</button><button data-t="insights">Insights</button><button data-t="health">Health</button></div>
-  <div class="pane" id="details"><p class="muted">Load a model, then tap any node to trace what feeds it (amber) and what it feeds (green).</p></div>
+  <div class="tabs"><button data-t="details" class="on">Details</button><button data-t="profile">Model profile</button><button data-t="insights">Rankings</button></div>
+  <div class="pane" id="details"><p class="muted">Load a model to start.</p></div>
+  <div class="pane" id="profile" style="display:none"><p class="muted">Load a model to see its profile and checks.</p></div>
   <div class="pane" id="insights" style="display:none"><p class="muted">Load a model to see rankings.</p></div>
-  <div class="pane" id="health" style="display:none"><p class="muted">Load a model to see health checks.</p></div>
  </aside>
 </main>
 
@@ -191,7 +210,7 @@ function norm(s){return String(s==null?'':s).toLowerCase().replace(/\s+/g,' ').t
 
 function parseCSV(text){
   text=text.replace(/^﻿/,'');
-  const first=text.slice(0,text.indexOf('\n')>=0?text.indexOf('\n'):text.length);
+  const nl=text.indexOf('\n'), first=text.slice(0,nl>=0?nl:text.length);
   const d=(first.split('\t').length>first.split(',').length)?'\t':',';
   const rows=[];let row=[],f='',q=false,i=0;const n=text.length;
   while(i<n){
@@ -209,40 +228,72 @@ function parseCSV(text){
   return rows.filter(r=>r.length>1||(r[0]&&r[0].trim()!==''));
 }
 
+/* Anaplan exports Format and Summary either as plain words or as JSON */
+const FMT_TYPES={NUMBER:'Number',TEXT:'Text',BOOLEAN:'Boolean',ENTITY:'List',DATE:'Date',TIME_ENTITY:'Time period',NONE:'No data'};
+function decodeFormat(s){
+  s=String(s||'').trim(); if(!s) return {type:'',label:''};
+  if(s[0]==='{'){ try{ const j=JSON.parse(s), t=FMT_TYPES[j.dataType]||'Other'; let label=t;
+      if(j.dataType==='NUMBER'&&j.unitsType&&j.unitsType!=='NONE') label+=' ('+(j.unitsType==='PERCENTAGE'?'%':j.unitsType==='CURRENCY'?(j.currencyCode||'currency'):String(j.unitsType).toLowerCase())+')';
+      if(j.dataType==='NUMBER'&&j.decimalPlaces>=0) label+=' · '+j.decimalPlaces+' dp';
+      if(j.dataType==='TIME_ENTITY'&&j.periodType&&j.periodType.entityLabel) label+=' ('+j.periodType.entityLabel+')';
+      return {type:t,label}; }catch(e){} }
+  const u=s.toUpperCase();
+  const t=u.startsWith('NUMBER')?'Number':u.startsWith('TEXT')?'Text':u.startsWith('BOOLEAN')?'Boolean':(u.startsWith('LIST')||u.startsWith('ENTITY'))?'List':u.startsWith('DATE')?'Date':u.startsWith('TIME')?'Time period':(u.startsWith('NO DATA')||u==='NONE')?'No data':'Other';
+  return {type:t,label:s.length>48?s.slice(0,48)+'…':s};
+}
+const SUM_NAMES={NONE:'None',SUM:'Sum',AVERAGE:'Average',FORMULA:'Formula',ANY:'Any',ALL:'All',MAX:'Max',MIN:'Min',FIRST_NON_BLANK:'First non-blank',LAST_NON_BLANK:'Last non-blank',CLOSING_BALANCE:'Closing balance',OPENING_BALANCE:'Opening balance',RATIO:'Ratio',TEXT_SUM:'Text sum'};
+function decodeSummary(s){
+  s=String(s||'').trim(); if(!s) return {method:'',time:''};
+  if(s[0]==='{'){ try{ const j=JSON.parse(s), m=SUM_NAMES[j.summaryMethod]||j.summaryMethod||'', t=SUM_NAMES[j.timeSummaryMethod]||j.timeSummaryMethod||'';
+      return {method:m,time:j.timeSummarySameAsMainSummary?m:t}; }catch(e){} }
+  const m=s.replace(/_/g,' ').toLowerCase().replace(/^\w/,c=>c.toUpperCase()); return {method:m,time:m};
+}
+const num=v=>{ const x=parseFloat(String(v||'').replace(/[,%\s]/g,'')); return isFinite(x)?x:0; };
+
+/* Rows → line items, plus module rows (rows with an empty Module Name) when the export has them */
 function rowsToItems(rows,fileName){
   let h=-1;
   for(let i=0;i<Math.min(rows.length,10);i++){ if(rows[i].some(c=>/^\s*formula\s*$/i.test(c))){h=i;break;} }
   if(h<0) throw new Error('Could not find a "Formula" column in '+fileName+'. Export the line item blueprint as CSV.');
-  const H=rows[h].map(c=>norm(c));
-  const col=re=>H.findIndex(c=>re.test(c));
-  const ci={module:col(/^module(\/list)?$|^module name$/),name:col(/^line items?$|^line item name$|^name$/),formula:col(/^formula$/),format:col(/^format$/),applies:col(/^applies to$/)};
+  const H=rows[h].map(c=>norm(c)), col=re=>H.findIndex(c=>re.test(c));
+  const ci={module:col(/^module(\/list)?$|^module name$/),name:col(/^line items?$|^line item name$|^name$/),formula:col(/^formula$/),format:col(/^format$/),summary:col(/^summary( method)?$/),
+    applies:col(/^applies to$/),ts:col(/^time scale$/),tr:col(/^time range$/),ver:col(/^versions$/),style:col(/^style$/),cells:col(/^cell count$/),effort:col(/^calculation effort$/),
+    notes:col(/^notes$/),rd:col(/^read access driver$/),wr:col(/^write access driver$/),parent:col(/^parent$/),isSum:col(/^is summary$/),scope:col(/^formula scope$/),code:col(/^code$/),
+    tags:col(/^data tags$/),rb:col(/^referenced by$/)};
   if(ci.name<0) ci.name=(ci.module===0)?1:0;
   const fallback=String(fileName||'Module').replace(/\.[a-z]+$/i,'').replace(/\s*[-_]\s*(blueprint|line items?)\s*$/i,'').trim()||'Module';
-  const out=[];
+  const g=(r,k)=>ci[k]>=0?String(r[ci[k]]||'').trim():'';
+  const items=[], modules=[];
   for(let i=h+1;i<rows.length;i++){
-    const r=rows[i]; const name=(r[ci.name]||'').trim(); if(!name) continue;
-    const module=ci.module>=0?((r[ci.module]||'').trim()||fallback):fallback;
-    out.push({module,name,formula:ci.formula>=0?(r[ci.formula]||'').trim():'',format:ci.format>=0?(r[ci.format]||'').trim():'',appliesTo:ci.applies>=0?(r[ci.applies]||'').trim():''});
+    const r=rows[i], name=g(r,'name'); if(!name) continue;
+    if(ci.module>=0&&!g(r,'module')){ modules.push({name,appliesTo:g(r,'applies'),ts:g(r,'ts'),tr:g(r,'tr'),ver:g(r,'ver'),cells:num(g(r,'cells')),rb:g(r,'rb')}); continue; }
+    const f=decodeFormat(g(r,'format')), s=decodeSummary(g(r,'summary'));
+    items.push({module:ci.module>=0?g(r,'module'):fallback,name,formula:g(r,'formula'),appliesTo:g(r,'applies'),
+      p:{fmtType:f.type,fmt:f.label,sum:s.method,tsum:s.time,ts:g(r,'ts'),tr:g(r,'tr'),ver:g(r,'ver'),style:g(r,'style'),cells:num(g(r,'cells')),effort:num(g(r,'effort')),
+         notes:g(r,'notes'),rd:g(r,'rd'),wr:g(r,'wr'),parent:g(r,'parent'),isSum:g(r,'isSum'),scope:g(r,'scope'),code:g(r,'code'),tags:g(r,'tags'),rb:g(r,'rb')}});
   }
-  return out;
+  return {items,modules,hasRB:ci.rb>=0};
 }
 
 function splitList(s){return String(s||'').split(/[,;]/).map(x=>x.trim()).filter(x=>x&&!/^(time|versions?|none|\(none\)|-)$/i.test(x));}
 
-/* index items into modules; sets idx, id, mk, lists */
-function indexItems(items){
+/* Index items into modules (keeps model order from module rows when present) */
+function indexItems(items,modules){
   const mods=new Map();
+  const add=(name,i)=>{ const key=norm(name); let m=mods.get(key); if(!m){ m={key,name,items:new Map(),lists:new Set(),size:0,order:i,meta:{}}; mods.set(key,m); } return m; };
+  (modules||[]).forEach((md,i)=>{ const m=add(md.name,i); m.meta=md; splitList(md.appliesTo).forEach(l=>m.lists.add(l)); });
+  const base=(modules||[]).length;
   for(let i=0;i<items.length;i++){
     const it=items[i]; it.idx=i; it.id='i'+i; it.mk=norm(it.module);
-    let m=mods.get(it.mk); if(!m){m={key:it.mk,name:it.module,items:new Map(),lists:new Set(),size:0};mods.set(it.mk,m);}
-    m.size++; const k=norm(it.name); if(!m.items.has(k)) m.items.set(k,it);
+    const m=mods.get(it.mk)||add(it.module,base+i); m.size++;
+    const k=norm(it.name); if(!m.items.has(k)) m.items.set(k,it);
     it.lists=splitList(it.appliesTo); for(const l of it.lists) m.lists.add(l);
   }
   return mods;
 }
 
-/* Formula tokeniser: Anaplan names containing operators must be quoted, so we can
-   split on operators outside quotes and resolve each piece with hash lookups. */
+/* Formula tokeniser: names containing operators must be quoted in Anaplan, so split on
+   operators outside quotes and resolve each piece with hash lookups. */
 const OPS='()[],+-*/=<>&:;{}|^!';
 const KW=new Set(['if','then','else','and','or','not']);
 function tokenize(formula){
@@ -273,304 +324,222 @@ function lookup(t,own,mods){
     if(c==="'") q=!q;
     else if(c==='.'&&!q){ const m=mods.get(norm(unq(t.slice(0,i)))); if(m){ const it=m.items.get(norm(unq(t.slice(i+1)))); if(it) return it; } }
   }
-  return own.items.get(norm(unq(t)))||null;
+  return own?(own.items.get(norm(unq(t)))||null):null;
 }
-
-/* returns edges as [sourceIdx, targetIdx] */
+/* edges are [sourceIdx, targetIdx, kind] where kind 0 = formula reference, 1 = access driver (DCA) */
 function findRefs(items,mods,onProgress){
   const edges=[],seen=new Set();
   for(let ti=0;ti<items.length;ti++){
     const it=items[ti];
     if(onProgress&&ti%5000===0) onProgress(ti);
     if(!it.formula) continue;
-    const own=mods.get(it.mk);
+    const own=mods.get(it.mk); let skipNext=false;
     for(const s of tokenize(it.formula)){
+      if(skipNext){ skipNext=false; continue; }
+      if(s.call&&/^(finditem|item)$/i.test(s.t)){ skipNext=true; continue; } /* first argument is a list, not a line item */
       if(s.call&&/^[A-Za-z_][\w.]*$/.test(s.t)) continue;
       const hit=lookup(s.t,own,mods);
       const hits=hit?[hit]:splitKeywords(s.t).map(p=>lookup(p,own,mods)).filter(Boolean);
-      for(const h of hits){
-        if(h===it) continue;
-        const k=h.idx*1048576+ti; if(seen.has(k)) continue; seen.add(k);
-        edges.push([h.idx,ti]);
-      }
+      for(const h of hits){ if(h===it) continue; const k=h.idx*1048576+ti; if(seen.has(k)) continue; seen.add(k); edges.push([h.idx,ti,0]); }
     }
   }
   return edges;
 }
+function splitRefs(s){ const out=[];let cur='',q=false; for(const c of s){ if(c==="'")q=!q; if(c===','&&!q){ if(cur.trim()) out.push(cur.trim()); cur=''; } else cur+=c; } if(cur.trim()) out.push(cur.trim()); return out; }
+/* Anaplan's own "Referenced By" column: item X is referenced by Y → edge X → Y */
+function refsFromRB(items,mods){
+  const edges=[],seen=new Set();
+  for(const it of items){ if(!it.p||!it.p.rb||it.p.rb==='-') continue; const own=mods.get(it.mk);
+    for(const ref of splitRefs(it.p.rb)){ const t=lookup(ref,own,mods); if(!t||t===it) continue; const k=it.idx*1048576+t.idx; if(seen.has(k)) continue; seen.add(k); edges.push([it.idx,t.idx,0]); } }
+  return edges;
+}
+/* Dynamic cell access drivers: the driver line item controls access to this one */
+function dcaRefs(items,mods,existing){
+  const seen=new Set(existing.map(e=>e[0]*1048576+e[1])), edges=[];
+  for(const it of items){ if(!it.p) continue; const own=mods.get(it.mk);
+    for(const drv of [it.p.rd,it.p.wr]){ if(!drv||drv==='-') continue; const t=lookup(drv,own,mods); if(!t||t===it) continue; const k=t.idx*1048576+it.idx; if(seen.has(k)) continue; seen.add(k); edges.push([t.idx,it.idx,1]); } }
+  return edges;
+}
+function buildRefs(items,mods,hasRB,onProgress){
+  const useRB=hasRB&&items.some(it=>it.p&&it.p.rb&&it.p.rb!=='-');
+  const base=useRB?refsFromRB(items,mods):findRefs(items,mods,onProgress);
+  return {edges:base.concat(dcaRefs(items,mods,base)),source:useRB?'rb':'formula'};
+}
 
-/* convenience for tests: full build in one call */
-function buildGraph(items){
-  const mods=indexItems(items); const pairs=findRefs(items,mods);
+/* convenience for tests */
+function buildGraph(items,modules,hasRB){
+  const mods=indexItems(items,modules); const {edges,source}=buildRefs(items,mods,hasRB);
   for(const it of items){it.ins=[];it.outs=[];}
-  const edges=pairs.map(([s,t])=>{items[t].ins.push(items[s]);items[s].outs.push(items[t]);return {source:items[s],target:items[t]};});
-  return {items,mods,edges};
+  for(const [s,t] of edges){items[t].ins.push(items[s]);items[s].outs.push(items[t]);}
+  return {items,mods,edges:edges.map(([s,t,k])=>({source:items[s],target:items[t],kind:k})),source};
 }
 
-const SAMPLE_CSV=[
-'Module,Line Item,Format,Formula,Applies To',
-'SYS01 Time Settings,Forecast Start,DATE,,',
-'SYS01 Time Settings,Is Actual,BOOLEAN,START() < Forecast Start,',
-'SYS01 Time Settings,Is Forecast,BOOLEAN,NOT Is Actual,',
-'SYS02 Employee Properties,Cost Centre,LIST: Cost Centre,,Employee',
-'SYS02 Employee Properties,Annual Salary,NUMBER,,Employee',
-'SYS02 Employee Properties,Start Date,DATE,,Employee',
-'DAT01 GL Actuals,Amount,NUMBER,,"Cost Centre, Account"',
-'DAT02 Headcount,FTE,NUMBER,,Employee',
-'INP01 Assumptions,Salary Increase %,NUMBER,,Cost Centre',
-'INP01 Assumptions,Super Rate %,NUMBER,,Cost Centre',
-'INP01 Assumptions,Opex Growth %,NUMBER,,Cost Centre',
-'CAL01 Salary Calc,Monthly Salary,NUMBER,"\'SYS02 Employee Properties\'.Annual Salary / 12 * (1 + INP01 Assumptions.Salary Increase %[LOOKUP: \'SYS02 Employee Properties\'.Cost Centre])",Employee',
-'CAL01 Salary Calc,Super,NUMBER,"Monthly Salary * INP01 Assumptions.Super Rate %[LOOKUP: \'SYS02 Employee Properties\'.Cost Centre]",Employee',
-'CAL01 Salary Calc,Employed?,BOOLEAN,"START() >= \'SYS02 Employee Properties\'.Start Date",Employee',
-'CAL01 Salary Calc,Total Cost,NUMBER,"IF Employed? THEN (Monthly Salary + Super) * DAT02 Headcount.FTE ELSE 0",Employee',
-'CAL02 Opex Forecast,Actuals,NUMBER,DAT01 GL Actuals.Amount,"Cost Centre, Account"',
-'CAL02 Opex Forecast,Forecast,NUMBER,"IF \'SYS01 Time Settings\'.Is Forecast THEN PREVIOUS(Forecast) * (1 + INP01 Assumptions.Opex Growth %) ELSE Actuals","Cost Centre, Account"',
-'CAL02 Opex Forecast,Salary Cost,NUMBER,"CAL01 Salary Calc.Total Cost[SUM: \'SYS02 Employee Properties\'.Cost Centre]","Cost Centre, Account"',
-'CAL02 Opex Forecast,Total Opex,NUMBER,Forecast + Salary Cost,"Cost Centre, Account"',
-'CAL03 Variance,Budget,NUMBER,,Cost Centre',
-'CAL03 Variance,Variance,NUMBER,CAL02 Opex Forecast.Total Opex[SUM: Account] - Budget,Cost Centre',
-'CAL03 Variance,Variance %,PERCENT,IF Budget = 0 THEN 0 ELSE Variance / Budget,Cost Centre',
-'CAL03 Variance,Old Budget Uplift,NUMBER,Budget * 1.1,Cost Centre',
-'REP01 P&L Report,Opex,NUMBER,CAL02 Opex Forecast.Total Opex,"Cost Centre, Account"',
-'REP01 P&L Report,Budget,NUMBER,CAL03 Variance.Budget,Cost Centre',
-'REP01 P&L Report,Variance,NUMBER,CAL03 Variance.Variance,Cost Centre',
-'REP01 P&L Report,Variance %,PERCENT,CAL03 Variance.Variance %,Cost Centre',
-'REP02 Headcount Dashboard,FTE,NUMBER,"DAT02 Headcount.FTE[SUM: \'SYS02 Employee Properties\'.Cost Centre]",Cost Centre',
-'REP02 Headcount Dashboard,Salary Cost,NUMBER,"CAL01 Salary Calc.Total Cost[SUM: \'SYS02 Employee Properties\'.Cost Centre]",Cost Centre'
-].join('\n');
-
-if(typeof module!=='undefined') module.exports={parseCSV,rowsToItems,buildGraph,indexItems,findRefs,tokenize,SAMPLE_CSV,norm};
 </script>
-
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/layout-base@2.0.1/layout-base.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/cose-base@2.2.0/cose-base.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/cytoscape-fcose@2.2.0/cytoscape-fcose.js"></script>
 <script>
-/* ---------- UI ---------- */
+/* ================= Anaplan Lineage Explorer: UI ================= */
 const $=id=>document.getElementById(id);
-const LINE_LIMIT=1500;   // max line items drawn at once
-const FOCUS_CAP=1200;    // max nodes in one lineage trace view
-const PULSE_MAX=300;     // animate flow only on small traces
-const MOD_EDGE_MAX=2000; // strongest module links drawn by default
-const PALETTE={SYS:'#8b95ad',DAT:'#2fd3a7',INP:'#6c8cff',CAL:'#ff7a59',REP:'#ff5fa2',OUT:'#ff5fa2',DSH:'#ff5fa2',EXP:'#ff5fa2',OTHER:'#b38cff',LIST:'#4a5675'};
-const LEGEND=[['SYS','System'],['DAT','Data'],['INP','Input'],['CAL','Calculation'],['REP','Report / output'],['OTHER','Other']];
-const OUTPUT_PREFIX=/^(rep|out|dsh|exp)/i;
-const S={g:null,mode:'module',layout:'flow',sel:null,moduleFilter:null,focus:null,history:[],anonMap:null,raf:0,byId:new Map(),search:[]};
-let hasDagre=false,hasFcose=false;
-try{ if(window.cytoscapeDagre){cytoscape.use(window.cytoscapeDagre);hasDagre=true;} }catch(e){}
-try{ if(window.cytoscapeFcose){cytoscape.use(window.cytoscapeFcose);hasFcose=true;} }catch(e){}
-
-function prefixOf(name){const m=String(name).trim().match(/^([A-Za-z]{3})/);const p=m?m[1].toUpperCase():'';return PALETTE[p]&&p!=='LIST'?p:'OTHER';}
-function colorOf(name){return PALETTE[prefixOf(name)];}
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function heatColor(t){const a=[43,58,95],b=[255,107,61],c=[255,214,92];const mix=(x,y,k)=>x.map((v,i)=>Math.round(v+(y[i]-v)*k));const r=t<.6?mix(a,b,t/.6):mix(b,c,(t-.6)/.4);return `rgb(${r.join(',')})`;}
-function maxOf(arr,f){let m=1;for(const x of arr){const v=f(x);if(v>m)m=v;}return m;}
-const fmt=n=>n.toLocaleString();
-function busy(on,msg){document.body.classList.toggle('busy',on);if(msg)$('busyText').textContent=msg;}
+const fmt=n=>Math.round(n).toLocaleString();
+const short=n=>n>=1e9?(n/1e9).toFixed(1)+'B':n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'k':String(Math.round(n));
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const trunc=(s,n)=>{s=String(s);return s.length>n?s.slice(0,n-1)+'…':s;};
 const nextFrame=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
+function busy(on,msg){document.body.classList.toggle('busy',on);if(msg)$('busyText').textContent=msg;}
 
-/* ---------- Cytoscape instance (recreated per view so big views get cheaper renderer settings) ---------- */
-let cy=null;
-/* Link appearance: 'subtle' (default), 'bold', or 'hidden' (only traced links show) */
-function edgeStyles(big){
-  const mode=$('linkStyle').value;
-  const base={'line-color':'#3a4668','target-arrow-color':'#3a4668','target-arrow-shape':'triangle','curve-style':big?'straight':'bezier'};
-  const looks={
-    subtle:{width:'data(thin)','opacity':big?.16:.32,'arrow-scale':.55},
-    bold:{width:'data(width)','opacity':.75,'arrow-scale':.8,'line-color':'#46557d','target-arrow-color':'#46557d'},
-    hidden:{width:'data(thin)','opacity':0,'arrow-scale':.55}
-  };
-  return [
-    {selector:'edge',style:Object.assign(base,looks[mode])},
-    {selector:'edge[kind="list"]',style:{'line-style':'dotted','opacity':mode==='hidden'?0:(mode==='bold'?.5:.2)}}
-  ];
+/* ---------- DISCO layers and colours ---------- */
+const LAYERS=['Data','Input','System','Calculation','Output','Other'];
+const LAYER_COLOR={Data:'#2fd3a7',Input:'#6c8cff',System:'#8b95ad',Calculation:'#ff7a59',Output:'#ff5fa2',Other:'#b38cff'};
+const LAYER_RANK={Data:0,Input:0,System:0,Calculation:1,Output:2};
+const SECTION_COLORS=['#6c8cff','#2fd3a7','#ff7a59','#ff5fa2','#f5b942','#b38cff','#4fc3f7','#9ccc65','#e57373','#a1887f','#90a4ae','#ffb74d'];
+const PREFIX_LAYER={SYS:'System',MAP:'System',ADM:'System',DAT:'Data',STG:'Data',STAG:'Data',IMP:'Data',INP:'Input',CAL:'Calculation',CALC:'Calculation',OUT:'Output',REP:'Output',EXP:'Output',DSH:'Output'};
+function layerOf(name){
+  const m=String(name).match(/(?:^|[\s\d._\-])(SYS|DAT|INP|CALC|CAL|OUT|REP|EXP|MAP|STAG|STG|IMP|DSH|ADM)[A-Z0-9]{0,3}(?=[\s\d._\-:]|$)/);
+  if(m) return PREFIX_LAYER[m[1]];
+  const n=String(name);
+  if(/\bstag/i.test(n)) return 'Data'; if(/\bcalc/i.test(n)) return 'Calculation';
+  if(/\b(report|output|export|dashboard)/i.test(n)) return 'Output'; if(/\b(input|assumption)/i.test(n)) return 'Input';
+  if(/\b(system|mapping|properties|settings|calendar|filter|access|time)\b/i.test(n)) return 'System';
+  return 'Other';
 }
-/* Traced links follow the Links setting too: calm solid lines unless 'bold' is chosen */
-function traceLook(big){
-  if($('linkStyle').value==='bold') return {'width':big?1.6:2.4,'opacity':.95,'arrow-scale':.75,'line-style':'dashed','line-dash-pattern':[6,6]};
-  return {'width':big?.8:1.2,'opacity':big?.45:.7,'arrow-scale':.5,'line-style':'solid'};
-}
-function styleFor(big){return [
- {selector:'node',style:{'background-color':'data(fill)','label':'data(label)','color':'#e7ebf5','font-size':10,'text-valign':'bottom','text-margin-y':4,'width':'data(size)','height':'data(size)','text-outline-color':'#0d1220','text-outline-width':2,'min-zoomed-font-size':big?9:6,'text-wrap':'ellipsis','text-max-width':140,'border-width':0}},
- {selector:'node[kind="list"]',style:{'shape':'round-rectangle','color':'#9aa4bd','font-style':'italic'}},
- {selector:'node[kind="module"]',style:{'font-size':11,'font-weight':600}},
- ...edgeStyles(big),
- {selector:'node.faded',style:{'opacity':.12}},
- {selector:'edge.faded',style:{'opacity':.03}},
- {selector:'.hidden',style:{'display':'none'}},
- {selector:'node.sel',style:{'border-width':4,'border-color':'#ffffff','z-index':10}},
- {selector:'node.up',style:{'border-width':3,'border-color':'#f5b942'}},
- {selector:'node.dn',style:{'border-width':3,'border-color':'#2fd3a7'}},
- {selector:'edge.eup',style:Object.assign({'line-color':'#f5b942','target-arrow-color':'#f5b942','z-index':9},traceLook(big))},
- {selector:'edge.edn',style:Object.assign({'line-color':'#2fd3a7','target-arrow-color':'#2fd3a7','z-index':9},traceLook(big))},
- {selector:'node.hit',style:{'border-width':4,'border-color':'#6c8cff'}},
- {selector:'node[kind="group"]',style:{'shape':'round-rectangle','background-color':'#141c30','background-opacity':.85,'border-width':1.2,'border-color':'data(fill)','border-opacity':.55,
-   'label':'data(label)','text-valign':'top','text-halign':'center','text-margin-y':-6,'font-size':12,'font-weight':600,'color':'#c9d2ea','text-outline-width':0,
-   'text-background-color':'#0d1220','text-background-opacity':.9,'text-background-padding':3,'text-background-shape':'round-rectangle','text-max-width':260,'padding':18,'min-zoomed-font-size':5,'corner-radius':10}},
- {selector:'node[kind="group"].faded',style:{'opacity':.25}},
- {selector:'node[kind="group"].chain',style:{'border-opacity':1,'border-width':1.6}},
- {selector:'node[kind="card"]',style:{'shape':'round-rectangle','width':184,'height':30,'background-color':'#1b2439','border-width':1.5,'border-color':'data(fill)','label':'data(label)','text-valign':'center','text-halign':'center','text-margin-y':0,'font-size':11,'color':'#e7ebf5','text-outline-width':0,'text-max-width':168,'text-wrap':'ellipsis','min-zoomed-font-size':4}},
- {selector:'node[kind="card"].center',style:{'background-color':'#2a3760','border-color':'#ffffff','border-width':2.5,'font-weight':600,'width':200,'height':36,'font-size':12}},
- {selector:'node[kind="card"].hit',style:{'border-color':'#6c8cff','border-width':3}},
- {selector:'node[kind="exp"]',style:{'shape':'round-rectangle','width':38,'height':20,'background-color':'#2a3760','border-width':1,'border-color':'#6c8cff','label':'data(label)','font-size':10,'color':'#dfe6ff','text-valign':'center','text-halign':'center','text-margin-y':0,'text-outline-width':0,'min-zoomed-font-size':4}},
- {selector:'node[kind="exp"]:active, node[kind="card"]:active',style:{'overlay-opacity':.12,'overlay-color':'#6c8cff'}},
- {selector:'edge.lin',style:{'curve-style':'taxi','taxi-direction':'horizontal','taxi-turn':'50%','taxi-turn-min-distance':8,'target-arrow-shape':'triangle'}}
-];}
-function showTip(n,p){
-  const t=$('tip'); let html='';
-  if(n.data('kind')==='exp'){ const mo=isMod(n.data('of')); html=`Show ${n.data('label').slice(1)} more ${n.data('dir')<0?(mo?'modules that feed it':'inputs'):(mo?'modules it feeds':'items that use it')}`; }
-  else if(isMod(n.id())){ const m=S.g.mods.get(n.id().slice(2)); html=`<b>${esc(modLabel(m))}</b><span class="muted">${fmt(m.size)} line items · feeds from ${(S.g.modIn.get(m.key)||new Set()).size} · feeds into ${(S.g.modOut.get(m.key)||new Map()).size}</span>${n.id()!==S.focus.id?'<div class="note">Click to centre on this</div>':''}`; }
-  else { const it=S.byId.get(n.id()); if(!it) return; html=`<b>${esc(itemLabel(it))}</b><span class="muted">${esc(modLabel(S.g.mods.get(it.mk)))} · ${it.ins.length} in · ${it.outs.length} out</span>${it.formula&&!isAnon()?`<code>${esc(it.formula.length>280?it.formula.slice(0,280)+'…':it.formula)}</code>`:''}${n.data('kind')==='card'&&n.id()!==S.focus.id?'<div class="note">Click to centre on this</div>':''}`; }
-  t.innerHTML=html; t.style.display='block';
-  const W=$('stage').clientWidth, H=$('stage').clientHeight; let x=p.x+14, y=p.y+14;
-  if(x+t.offsetWidth>W-8) x=p.x-t.offsetWidth-14; if(y+t.offsetHeight>H-8) y=H-t.offsetHeight-8;
-  t.style.left=Math.max(6,x)+'px'; t.style.top=Math.max(6,y)+'px';
-}
-function hideTip(){ $('tip').style.display='none'; }
-function makeCy(els){
-  stopPulse(); if(cy) cy.destroy();
-  const nodes=els.filter(e=>!e.data.source&&e.data.kind!=='group').length, edges=els.filter(e=>e.data.source).length, big=nodes>500||edges>1500; S.big=big;
-  cy=cytoscape({container:$('cy'),elements:els,layout:{name:'preset'},style:styleFor(big),minZoom:.03,maxZoom:3,
-    textureOnViewport:big,hideEdgesOnViewport:big,motionBlur:false,pixelRatio:big?1:'auto',boxSelectionEnabled:false});
-  cy.on('tap','node',e=>onTap(e.target));
-  cy.on('mouseover','node[kind="card"], node[kind="item"], node[kind="exp"]',e=>showTip(e.target,e.renderedPosition));
-  cy.on('mouseout','node',hideTip); cy.on('viewport',hideTip);
-  cy.on('tap',e=>{ if(e.target===cy&&S.sel&&!S.focus) clearSel(); });
-  return {nodes,edges};
-}
-function layoutOpts(n,e){
-  const anim=n<350;
-  if(S.focus) return {name:'preset',fit:true,padding:50,animate:false};
-  if(S.mode==='module'&&S.layout==='flow'&&n>150) return {name:'preset',positions:discoPositions(),fit:true,padding:40,animate:false};
-  if(S.mode==='line'&&cy.nodes('[kind="group"]').length){
-    if(S.layout==='flow') return {name:'preset',positions:groupedPositions(),fit:true,padding:40,animate:false};
-    if(hasFcose) return {name:'fcose',quality:n>600?'default':'proof',randomize:true,animate:anim,animationDuration:600,nodeRepulsion:()=>12000,idealEdgeLength:()=>90,nestingFactor:.5,gravityCompound:1,gravityRangeCompound:1.5,nodeSeparation:80,packComponents:false,fit:true,padding:40};
-  }
-  if(S.layout==='flow'&&hasDagre&&n<=800&&e<=900)
-    return {name:'dagre',rankDir:'LR',nodeSep:S.mode==='module'?30:14,rankSep:S.mode==='module'?110:90,edgeSep:8,animate:anim,animationDuration:450,fit:true,padding:40};
-  if(hasFcose) return {name:'fcose',quality:(n>250||e>1500)?'draft':'default',randomize:true,animate:anim,animationDuration:600,nodeRepulsion:()=>S.mode==='module'?9000:4500,idealEdgeLength:()=>S.mode==='module'?110:60,edgeElasticity:()=>.45,nodeSeparation:60,numIter:(n>700||e>1000)?250:2500,packComponents:true,fit:true,padding:40};
-  return {name:'cose',animate:false,numIter:300,fit:true,padding:40};
-}
-/* Big module graphs: lay modules out in DISCO columns (System → Data → Input → Calc → Report). Instant and readable. */
-function discoPositions(){
-  const order=['LIST','SYS','DAT','INP','CAL','OTHER','REP'], groups=new Map(order.map(k=>[k,[]]));
-  cy.nodes().forEach(n=>{ const k=n.data('kind')==='list'?'LIST':(n.data('kind')==='module'?(p=>p==='OUT'||p==='DSH'||p==='EXP'?'REP':p)(prefixOf(S.g.mods.get(n.data('ref')).name)):'OTHER'); groups.get(k).push(n); });
-  const n=cy.nodes().length, W=170, H=46, GAP=220, aspect=Math.max(.8,cy.width()/Math.max(1,cy.height()));
-  const R=Math.max(8,Math.min(90,Math.round(Math.sqrt(n*W/(aspect*H)))));
-  const pos={}; let x=0;
-  for(const k of order){ const g=groups.get(k); if(!g.length) continue;
-    g.sort((a,b)=>String(a.data('label')).localeCompare(String(b.data('label')),undefined,{numeric:true}));
-    const cols=Math.ceil(g.length/R), rows=Math.ceil(g.length/cols);
-    g.forEach((node,i)=>{ const c=Math.floor(i/rows), r=i%rows; pos[node.id()]={x:x+c*W,y:(r-(rows-1)/2)*H}; });
-    x+=cols*W+GAP; }
-  return node=>pos[node.id()];
-}
-/* Line items grouped by module: module boxes left-to-right in data-flow order,
-   and inside each box, line items in columns by their own flow (inputs left, calcs right). */
-function levels(ids,edgesOf){
-  const indeg=new Map(ids.map(i=>[i,0])), lvl=new Map(ids.map(i=>[i,0]));
-  for(const i of ids) for(const t of edgesOf(i)) if(indeg.has(t)) indeg.set(t,indeg.get(t)+1);
-  const q=ids.filter(i=>indeg.get(i)===0); let h=0;
-  while(h<q.length){ const i=q[h++]; for(const t of edgesOf(i)){ if(!indeg.has(t)) continue; lvl.set(t,Math.max(lvl.get(t),lvl.get(i)+1)); indeg.set(t,indeg.get(t)-1); if(indeg.get(t)===0) q.push(t); } }
-  return lvl; /* items in cycles keep the level they had reached */
-}
-function groupedPositions(){
-  const IW=150, IH=46, ROWS=16, MGAP=80, RGAP=170;
-  const groups=cy.nodes('[kind="group"]'), pos={}, box=new Map();
-  const present=new Set(cy.nodes('[kind="item"]').map(n=>n.id()));
-  // 1) inside each module
-  groups.forEach(gn=>{
-    const kids=gn.children('[kind="item"]').map(n=>n.id()), kidSet=new Set(kids);
-    const lv=levels(kids,id=>S.byId.get(id).outs.map(o=>o.id).filter(x=>kidSet.has(x)));
-    const byL=new Map(); kids.forEach(id=>{ const l=lv.get(id); if(!byL.has(l)) byL.set(l,[]); byL.get(l).push(id); });
-    let col=0, maxRows=0; const local={};
-    [...byL.keys()].sort((a,b)=>a-b).forEach(l=>{ const arr=byL.get(l).sort((a,b)=>S.byId.get(a).idx-S.byId.get(b).idx);
-      for(let i=0;i<arr.length;i+=ROWS){ const chunk=arr.slice(i,i+ROWS); chunk.forEach((id,r)=>local[id]={x:col*IW,y:r*IH}); maxRows=Math.max(maxRows,chunk.length); col++; } });
-    box.set(gn.id(),{local,w:Math.max(1,col)*IW,h:Math.max(1,maxRows)*IH});
-  });
-  // 2) module order by flow
-  const gids=groups.map(n=>n.id()), gOut=new Map(gids.map(g=>[g,new Set()])), gIn=new Map(gids.map(g=>[g,new Set()]));
-  cy.edges().forEach(e=>{ const a=e.source().parent(), b=e.target().parent(); if(a.length&&b.length&&a.id()!==b.id()){ gOut.get(a.id()).add(b.id()); gIn.get(b.id()).add(a.id()); } });
-  const glv=levels(gids,g=>[...gOut.get(g)]);
-  const ranks=new Map(); gids.forEach(g=>{ const r=glv.get(g); if(!ranks.has(r)) ranks.set(r,[]); ranks.get(r).push(g); });
-  let area=0,maxH=0; box.forEach(b=>{ area+=(b.w+90)*(b.h+MGAP); maxH=Math.max(maxH,b.h); });
-  const aspect=Math.max(1,cy.width()/Math.max(1,cy.height())), maxColH=Math.max(maxH,500,Math.sqrt(area/aspect));
-  const gy=new Map(); let x=0;
-  [...ranks.keys()].sort((a,b)=>a-b).forEach(r=>{
-    const col=ranks.get(r);
-    const bary=g=>{ const ys=[...gIn.get(g)].filter(p=>gy.has(p)).map(p=>gy.get(p)); return ys.length?ys.reduce((a,b)=>a+b,0)/ys.length:Infinity; };
-    col.sort((a,b)=>{ const d=bary(a)-bary(b); return isNaN(d)||d===0?String(cy.getElementById(a).data('label')).localeCompare(String(cy.getElementById(b).data('label')),undefined,{numeric:true}):d; });
-    /* wrap tall columns into sub-columns so the picture keeps a screen-like shape */
-    const subs=[]; let cur=[],h=0;
-    col.forEach(g=>{ const b=box.get(g); if(cur.length&&h+b.h>maxColH){ subs.push(cur); cur=[]; h=0; } cur.push(g); h+=b.h+MGAP; });
-    if(cur.length) subs.push(cur);
-    subs.forEach(sc=>{ const total=sc.reduce((t,g)=>t+box.get(g).h,0)+MGAP*(sc.length-1); let y=-total/2, w=0;
-      sc.forEach(g=>{ const b=box.get(g); for(const id in b.local) pos[id]={x:x+b.local[id].x,y:y+b.local[id].y}; gy.set(g,y+b.h/2); y+=b.h+MGAP; w=Math.max(w,b.w); });
-      x+=w+90; });
-    x+=RGAP-90; });
-  // lists (if shown) in a column on the left
-  const lists=cy.nodes('[kind="list"]'); lists.forEach((n,i)=>pos[n.id()]={x:-RGAP-60,y:(i-(lists.length-1)/2)*IH});
-  return n=>n.isParent()?undefined:(pos[n.id()]||{x:0,y:0});
-}
-function runLayout(eles){ const t=eles||cy.elements().not('.hidden'); const n=t.nodes().length; t.layout(layoutOpts(n,t.edges().length)).run(); }
+const isDividerName=n=>/^\s*[-*=_#~]{2,}/.test(n)||/[-*=_#~]{3,}\s*$/.test(n);
+const tidySection=n=>{ const t=n.replace(/[-*=_#~]+/g,' ').replace(/\s+/g,' ').trim(); return t?t.charAt(0).toUpperCase()+t.slice(1).toLowerCase():'Unnamed section'; };
 
-/* ---------- Loading (Web Worker, falls back to main thread) ---------- */
+const CAT_COLORS={
+  fmt:{Number:'#6c8cff',Text:'#f5b942',Boolean:'#2fd3a7',List:'#b38cff',Date:'#ff7a59','Time period':'#ff5fa2','No data':'#5f6a85',Other:'#93a0bd'},
+  sum:{None:'#5f6a85',Sum:'#6c8cff',Formula:'#ff6b6b',Average:'#2fd3a7',Any:'#f5b942',All:'#f5b942',Max:'#ff7a59',Min:'#ff7a59','Closing balance':'#b38cff','Opening balance':'#b38cff','First non-blank':'#4fc3f7','Last non-blank':'#4fc3f7',Ratio:'#ff5fa2'},
+  ts:{'Not Applicable':'#5f6a85',Month:'#6c8cff',Quarter:'#2fd3a7',Year:'#ff7a59',Week:'#f5b942',Day:'#ff5fa2','Half-Year':'#b38cff'},
+  ver:{'Not Applicable':'#5f6a85',All:'#6c8cff',Subset:'#b38cff'}
+};
+const HL_NAMES={fmt:'Format',sum:'Summary method',ts:'Time scale',ver:'Versions',effort:'Calculation effort',cells:'Cell count',len:'Formula length'};
+const isHeat=a=>a==='effort'||a==='cells'||a==='len';
+function catOf(it,a){ const p=it.p||{};
+  if(a==='fmt') return p.fmtType||'Unknown'; if(a==='sum') return p.sum||'Unknown'; if(a==='ts') return p.ts||'Unknown';
+  if(a==='ver') return !p.ver?'Unknown':(p.ver==='All'||p.ver==='Not Applicable')?p.ver:'Subset'; return ''; }
+function heatVal(it,a){ const p=it.p||{}; return a==='effort'?(p.effort||0):a==='cells'?Math.log10(1+(p.cells||0)):it.formula.length; }
+function heatColor(t){t=Math.max(0,Math.min(1,t));const a=[43,58,95],b=[255,107,61],c=[255,214,92];const mix=(x,y,k)=>x.map((v,i)=>Math.round(v+(y[i]-v)*k));const r=t<.6?mix(a,b,t/.6):mix(b,c,(t-.6)/.4);return `rgb(${r.join(',')})`;}
+function tint(col,k){ const p=c=>{ if(c.startsWith('rgb')) return c.match(/\d+/g).map(Number); const h=c.replace('#',''); return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16)); }; const a=p(col),b=[27,36,57]; return `rgb(${a.map((v,i)=>Math.round(b[i]+(v-b[i])*k)).join(',')})`; }
+
+/* ---------- State ---------- */
+const S={g:null,groupBy:'layer',nav:{level:'model'},focus:null,hl:'',hlFilter:null,anonMap:null,byId:new Map(),search:[],heatMax:{}};
+
+/* ---------- Sample model (fictional) ---------- */
+const SAMPLE_ROWS=[
+ ['','Format','Formula','Summary','Applies To','Time Scale','Versions','Cell Count','Calculation Effort','Module Name'],
+ ['--- SYSTEM ---','','','','','','','','',''],
+ ['SYS01 Time Settings','','','','-','Month','Not Applicable','49','',''],
+ ['Forecast Start','Date','','None','-','Not Applicable','Not Applicable','1','00.00%','SYS01 Time Settings'],
+ ['Is Actual','Boolean','START() < Forecast Start','None','-','Month','Not Applicable','24','00.01%','SYS01 Time Settings'],
+ ['Is Forecast','Boolean','NOT Is Actual','None','-','Month','Not Applicable','24','00.01%','SYS01 Time Settings'],
+ ['SYS02 Employee Properties','','','','Employee','Not Applicable','Not Applicable','1500','',''],
+ ['Cost Centre','List: Cost Centre','','None','-','Not Applicable','Not Applicable','500','00.00%','SYS02 Employee Properties'],
+ ['Annual Salary','Number','','Sum','-','Not Applicable','Not Applicable','500','00.00%','SYS02 Employee Properties'],
+ ['Start Date','Date','','None','-','Not Applicable','Not Applicable','500','00.00%','SYS02 Employee Properties'],
+ ['--- DATA & INPUTS ---','','','','','','','','',''],
+ ['DAT01 GL Actuals','','','','Cost Centre, Account','Month','All','96000','',''],
+ ['Amount','Number','','Sum','-','Month','All','96000','00.00%','DAT01 GL Actuals'],
+ ['DAT02 Headcount','','','','Employee','Month','Not Applicable','12000','',''],
+ ['FTE','Number','','Sum','-','Month','Not Applicable','12000','00.00%','DAT02 Headcount'],
+ ['INP01 Assumptions','','','','Cost Centre','Not Applicable','Not Applicable','120','',''],
+ ['Salary Increase %','Number (%)','','None','-','Not Applicable','Not Applicable','40','00.00%','INP01 Assumptions'],
+ ['Super Rate %','Number (%)','','None','-','Not Applicable','Not Applicable','40','00.00%','INP01 Assumptions'],
+ ['Opex Growth %','Number (%)','','None','-','Not Applicable','Not Applicable','40','00.00%','INP01 Assumptions'],
+ ['--- CALCULATIONS ---','','','','','','','','',''],
+ ['CAL01 Salary Calc','','','','Employee','Month','All','48000','',''],
+ ['Monthly Salary','Number',"'SYS02 Employee Properties'.Annual Salary / 12 * (1 + INP01 Assumptions.Salary Increase %[LOOKUP: 'SYS02 Employee Properties'.Cost Centre])",'Sum','-','Month','All','12000','04.20%','CAL01 Salary Calc'],
+ ['Super','Number',"Monthly Salary * INP01 Assumptions.Super Rate %[LOOKUP: 'SYS02 Employee Properties'.Cost Centre]",'Sum','-','Month','All','12000','03.10%','CAL01 Salary Calc'],
+ ['Employed?','Boolean',"START() >= 'SYS02 Employee Properties'.Start Date",'Any','-','Month','All','12000','01.20%','CAL01 Salary Calc'],
+ ['Total Cost','Number','IF Employed? THEN (Monthly Salary + Super) * DAT02 Headcount.FTE ELSE 0','Sum','-','Month','All','12000','05.80%','CAL01 Salary Calc'],
+ ['CAL02 Opex Forecast','','','','Cost Centre, Account','Month','All','384000','',''],
+ ['Actuals','Number','DAT01 GL Actuals.Amount','Sum','-','Month','All','96000','01.50%','CAL02 Opex Forecast'],
+ ['Forecast','Number',"IF 'SYS01 Time Settings'.Is Forecast THEN PREVIOUS(Forecast) * (1 + INP01 Assumptions.Opex Growth %) ELSE Actuals",'Sum','-','Month','All','96000','09.40%','CAL02 Opex Forecast'],
+ ['Salary Cost','Number',"CAL01 Salary Calc.Total Cost[SUM: 'SYS02 Employee Properties'.Cost Centre]",'Sum','-','Month','All','96000','06.30%','CAL02 Opex Forecast'],
+ ['Total Opex','Number','Forecast + Salary Cost','Sum','-','Month','All','96000','02.10%','CAL02 Opex Forecast'],
+ ['CAL03 Variance','','','','Cost Centre','Month','All','6000','',''],
+ ['Budget','Number','','Sum','-','Month','All','1200','00.00%','CAL03 Variance'],
+ ['Variance','Number','CAL02 Opex Forecast.Total Opex[SUM: Account] - Budget','Sum','-','Month','All','1200','01.10%','CAL03 Variance'],
+ ['Variance %','Number (%)','IF Budget = 0 THEN 0 ELSE Variance / Budget','Formula','-','Month','All','1200','00.90%','CAL03 Variance'],
+ ['Variance Comment','Text','IF Variance > 0 THEN "Over budget" ELSE "On track"','Sum','-','Month','All','1200','00.40%','CAL03 Variance'],
+ ['Prior Report Opex','Number',"'REP01 P&L Report'.Opex",'Sum','-','Month','All','1200','00.30%','CAL03 Variance'],
+ ['Old Budget Uplift','Number','Budget * 1.1','Sum','-','Month','All','1200','00.20%','CAL03 Variance'],
+ ['--- REPORTING ---','','','','','','','','',''],
+ ['REP01 P&L Report','','','','Cost Centre, Account','Month','All','24000','',''],
+ ['Opex','Number','CAL02 Opex Forecast.Total Opex','Sum','-','Month','All','6000','00.80%','REP01 P&L Report'],
+ ['Budget','Number','CAL03 Variance.Budget','Sum','-','Month','All','6000','00.40%','REP01 P&L Report'],
+ ['Variance','Number','CAL03 Variance.Variance','Sum','-','Month','All','6000','00.40%','REP01 P&L Report'],
+ ['Variance %','Number (%)','CAL03 Variance.Variance %','Formula','-','Month','All','6000','00.70%','REP01 P&L Report'],
+ ['REP02 Headcount Dashboard','','','','Cost Centre','Month','Not Applicable','480','',''],
+ ['FTE','Number',"DAT02 Headcount.FTE[SUM: 'SYS02 Employee Properties'.Cost Centre]",'Sum','-','Month','Not Applicable','240','01.60%','REP02 Headcount Dashboard'],
+ ['Salary Cost','Number',"CAL01 Salary Calc.Total Cost[SUM: 'SYS02 Employee Properties'.Cost Centre]",'Sum','-','Month','Not Applicable','240','01.90%','REP02 Headcount Dashboard']
+];
+const SAMPLE_CSV=SAMPLE_ROWS.map(r=>r.map(c=>/[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c).join(',')).join('\n');
+
+/* ---------- Loading: Web Worker with main-thread fallback ---------- */
 function workerSource(){
   return $('core').textContent+`
   self.onmessage=e=>{ try{
-    let items=[];
-    for(const f of e.data.files){ postMessage({type:'progress',msg:'Reading '+f.name}); const r=rowsToItems(parseCSV(f.text),f.name); for(const x of r) items.push(x); }
+    let items=[],modules=[],hasRB=false;
+    for(const f of e.data.files){ postMessage({type:'progress',msg:'Reading '+f.name}); const r=rowsToItems(parseCSV(f.text),f.name); for(const x of r.items) items.push(x); for(const m of r.modules) modules.push(m); hasRB=hasRB||r.hasRB; }
     if(!items.length) throw new Error('No line items found in the file.');
-    postMessage({type:'progress',msg:'Tracing formulas in '+items.length.toLocaleString()+' line items'});
-    const mods=indexItems(items);
-    const edges=findRefs(items,mods,i=>postMessage({type:'progress',msg:'Tracing formulas: '+Math.round(i/items.length*100)+'%'}));
-    postMessage({type:'done',items:items.map(x=>({module:x.module,name:x.name,formula:x.formula,format:x.format,appliesTo:x.appliesTo})),edges});
+    postMessage({type:'progress',msg:'Tracing lineage across '+items.length.toLocaleString()+' line items'});
+    const mods=indexItems(items,modules);
+    const res=buildRefs(items,mods,hasRB,i=>postMessage({type:'progress',msg:'Reading formulas: '+Math.round(i/items.length*100)+'%'}));
+    postMessage({type:'done',items:items.map(x=>({module:x.module,name:x.name,formula:x.formula,appliesTo:x.appliesTo,p:x.p})),modules,edges:res.edges,source:res.source});
   }catch(err){ postMessage({type:'error',msg:err.message}); } };`;
 }
 function parseInWorker(files){
   return new Promise((resolve,reject)=>{
-    let w;
-    try{ w=new Worker(URL.createObjectURL(new Blob([workerSource()],{type:'text/javascript'}))); }catch(e){ return reject({fallback:true}); }
+    let w; try{ w=new Worker(URL.createObjectURL(new Blob([workerSource()],{type:'text/javascript'}))); }catch(e){ return reject({fallback:true}); }
     w.onmessage=e=>{ const m=e.data; if(m.type==='progress') busy(true,m.msg); else if(m.type==='done'){w.terminate();resolve(m);} else if(m.type==='error'){w.terminate();reject(new Error(m.msg));} };
     w.onerror=e=>{ e.preventDefault(); w.terminate(); reject({fallback:true}); };
     w.postMessage({files});
   });
 }
 async function parseOnMain(files){
-  let items=[]; for(const f of files){ busy(true,'Reading '+f.name); await nextFrame(); for(const x of rowsToItems(parseCSV(f.text),f.name)) items.push(x); }
+  let items=[],modules=[],hasRB=false;
+  for(const f of files){ busy(true,'Reading '+f.name); await nextFrame(); const r=rowsToItems(parseCSV(f.text),f.name); for(const x of r.items) items.push(x); for(const m of r.modules) modules.push(m); hasRB=hasRB||r.hasRB; }
   if(!items.length) throw new Error('No line items found in the file.');
-  busy(true,'Tracing formulas'); await nextFrame();
-  const mods=indexItems(items); return {items,edges:findRefs(items,mods)};
+  busy(true,'Tracing lineage'); await nextFrame();
+  const mods=indexItems(items,modules); const res=buildRefs(items,mods,hasRB); return {items,modules,edges:res.edges,source:res.source};
 }
 async function loadText(files){
   busy(true,'Reading file'); $('err').textContent='';
   try{
     let res; try{ res=await parseInWorker(files); }catch(e){ if(e&&e.fallback) res=await parseOnMain(files); else throw e; }
-    busy(true,'Building views'); await nextFrame();
-    hydrate(res.items,res.edges);
-    $('empty').style.display='none'; $('legend').style.display='flex'; $('zoom').style.display='flex';
-    S.mode=S.g.items.length>LINE_LIMIT?'module':S.mode; setSeg('modeSeg',S.mode);
-    render(); renderHealth(); S.insight={key:'refs',shown:50}; S.impact=null; renderInsights(); showDetails(null);
+    busy(true,'Building the map'); await nextFrame();
+    hydrate(res);
+    $('empty').style.display='none'; $('legend').style.display='flex'; $('zoom').style.display='flex'; $('nav').style.display='flex';
+    $('srcNote').textContent=S.g.source==='rb'?"Lineage from Anaplan's Referenced By column":'Lineage from formula parsing';
+    S.groupBy=S.g.hasSections&&S.groupBy==='section'?'section':'layer'; setSeg('groupSeg',S.groupBy); $('groupSeg').querySelector('[data-v="section"]').disabled=!S.g.hasSections;
+    S.hl=''; S.hlFilter=null; $('hl').value='';
+    go({level:'model'}); renderProfile(); S.insight={key:'refs',shown:50}; S.impact=null; renderInsights();
   }catch(e){ $('empty').style.display='flex'; $('err').textContent=e.message||String(e); }
   busy(false);
 }
-function hydrate(items,pairs){
-  const mods=indexItems(items);
+function hydrate(res){
+  const {items,modules,edges,source}=res;
+  const mods=indexItems(items,modules);
   for(const it of items){it.ins=[];it.outs=[];}
-  for(const [s,t] of pairs){items[t].ins.push(items[s]);items[s].outs.push(items[t]);}
-  const modIn=new Map(),modOut=new Map();
-  for(const [s,t] of pairs){ const a=items[s].mk,b=items[t].mk; if(a===b) continue; if(!modOut.has(a))modOut.set(a,new Map()); modOut.get(a).set(b,(modOut.get(a).get(b)||0)+1); if(!modIn.has(b))modIn.set(b,new Set()); modIn.get(b).add(a); }
-  S.g={items,mods,edgeCount:pairs.length,modOut,modIn};
+  const dca=new Set();
+  for(const [s,t,k] of edges){ items[t].ins.push(items[s]); items[s].outs.push(items[t]); if(k===1) dca.add(s+'>'+t); }
+  const modOut=new Map(),modIn=new Map();
+  for(const [s,t] of edges){ const a=items[s].mk,b=items[t].mk; if(a===b) continue; if(!modOut.has(a))modOut.set(a,new Map()); modOut.get(a).set(b,(modOut.get(a).get(b)||0)+1); if(!modIn.has(b))modIn.set(b,new Set()); modIn.get(b).add(a); }
+  const ordered=[...mods.values()].sort((a,b)=>a.order-b.order);
+  let section='Top of model', hasDiv=false; const sections=new Map();
+  for(const m of ordered){
+    m.layer=layerOf(m.name); m.divider=m.size===0&&isDividerName(m.name);
+    if(m.divider){ section=tidySection(m.name); hasDiv=true; continue; }
+    m.section=section; if(!sections.has(section)) sections.set(section,{key:section,mods:[]}); sections.get(section).mods.push(m);
+    if(!m.meta.cells){ let c=0; m.items.forEach(it=>c+=(it.p&&it.p.cells)||0); m.cellsCalc=c; }
+  }
+  const modList=ordered.filter(m=>!m.divider);
+  S.g={items,mods,modList,edgeCount:edges.length,dcaCount:dca.size,dca,modOut,modIn,source,sections:[...sections.values()],hasSections:hasDiv&&modules.length>0,
+       hasMeta:items.some(i=>i.p&&(i.p.fmtType||i.p.sum))};
   S.byId=new Map(items.map(i=>[i.id,i]));
-  S.sel=null;S.moduleFilter=null;S.focus=null;S.history=[];S.anonMap=null;S.showAllLinks=false;
-  buildSearch();
+  S.heatMax={effort:Math.max(1e-9,...items.map(i=>i.p.effort||0)),cells:Math.max(1e-9,...items.map(i=>Math.log10(1+(i.p.cells||0)))),len:Math.max(1,...items.map(i=>i.formula.length))};
+  S.anonMap=null; S.focus=null; buildSearch();
 }
 async function loadFiles(fileList){
-  const list=[...fileList];   /* copy now: the input is reset right after this call */
-  busy(true,'Reading file'); await nextFrame();
+  const list=[...fileList]; busy(true,'Reading file'); await nextFrame();
   const files=await Promise.all(list.map(f=>f.text().then(text=>({name:f.name,text}))));
   loadText(files);
 }
@@ -578,57 +547,207 @@ $('file').addEventListener('change',e=>{ if(e.target.files.length) loadFiles(e.t
 ['sampleBtn','sampleBtn2'].forEach(id=>$(id).onclick=()=>loadText([{name:'Sample model.csv',text:SAMPLE_CSV}]));
 let dragN=0;
 window.addEventListener('dragenter',e=>{e.preventDefault();dragN++;$('drop').style.display='flex';});
-window.addEventListener('dragleave',e=>{dragN--; if(dragN<=0){dragN=0;$('drop').style.display='none';}});
+window.addEventListener('dragleave',()=>{dragN--; if(dragN<=0){dragN=0;$('drop').style.display='none';}});
 window.addEventListener('dragover',e=>e.preventDefault());
 window.addEventListener('drop',e=>{e.preventDefault();dragN=0;$('drop').style.display='none'; if(e.dataTransfer.files.length) loadFiles(e.dataTransfer.files);});
 
-/* ---------- Labels / anonymise ---------- */
-function allLists(){const s=new Set();S.g.mods.forEach(m=>m.lists.forEach(l=>s.add(l)));return [...s];}
-function anon(){ if(S.anonMap) return S.anonMap; const m=new Map(); let mi=0;
-  S.g.mods.forEach(mod=>{ mi++; const p=prefixOf(mod.name); m.set('m:'+mod.key,(p==='OTHER'?'MOD':p)+String(mi).padStart(2,'0')); let li=0; mod.items.forEach(it=>{li++; m.set(it.id,'Line item '+mi+'.'+li);}); });
-  S.g.items.forEach(it=>{ if(!m.has(it.id)) m.set(it.id,'Line item '+it.idx); });
-  let l=0; allLists().forEach(x=>{l++; m.set('l:'+x,'List '+l);}); return S.anonMap=m; }
+/* ---------- Names (with anonymise) ---------- */
 const isAnon=()=>$('anon').checked;
-function modLabel(mod){return isAnon()?anon().get('m:'+mod.key):mod.name;}
-function itemLabel(it){return isAnon()?anon().get(it.id):it.name;}
-function listLabel(l){return isAnon()?anon().get('l:'+l):l;}
+function anon(){ if(S.anonMap) return S.anonMap; const m=new Map(); let mi=0;
+  S.g.modList.forEach(mod=>{ mi++; m.set('m:'+mod.key,mod.layer.slice(0,3).toUpperCase()+String(mi).padStart(3,'0')); let li=0; mod.items.forEach(it=>{li++; m.set(it.id,'Line item '+mi+'.'+li);}); });
+  S.g.items.forEach(it=>{ if(!m.has(it.id)) m.set(it.id,'Line item '+it.idx); });
+  S.g.sections.forEach((s,i)=>m.set('s:'+s.key,'Section '+(i+1)));
+  return S.anonMap=m; }
+const modLabel=m=>isAnon()?anon().get('m:'+m.key):m.name;
+const itemLabel=it=>isAnon()?anon().get(it.id):it.name;
+const mod=k=>S.g.mods.get(k);
+function laneOf(m){ return S.groupBy==='section'?m.section:m.layer; }
+function laneName(l){ return S.groupBy==='section'&&isAnon()?(anon().get('s:'+l)||l):l; }
+function lanes(){ return S.groupBy==='section'?S.g.sections.map(s=>s.key):LAYERS.filter(l=>S.g.modList.some(m=>m.layer===l)); }
+function laneColor(l){ return S.groupBy==='section'?SECTION_COLORS[Math.max(0,lanes().indexOf(l))%SECTION_COLORS.length]:LAYER_COLOR[l]; }
+const laneMods=l=>S.g.modList.filter(m=>laneOf(m)===l);
+const modColor=m=>LAYER_COLOR[m.layer]||LAYER_COLOR.Other;
+const modCells=m=>m.meta&&m.meta.cells?m.meta.cells:(m.cellsCalc||0);
+function itemColor(it){ if(!S.hl) return modColor(mod(it.mk)); if(isHeat(S.hl)) return heatColor(heatVal(it,S.hl)/S.heatMax[S.hl]); return (CAT_COLORS[S.hl]||{})[catOf(it,S.hl)]||'#93a0bd'; }
+function metaLine(it){ const p=it.p||{};
+  if(!S.g.hasMeta) return `${it.ins.length} in · ${it.outs.length} out`;
+  return [p.fmtType||'—',p.sum&&p.sum!=='None'?'Σ '+p.sum:'',p.ts&&p.ts!=='Not Applicable'?p.ts:''].filter(Boolean).join(' · '); }
+function modMeta(m){ const c=modCells(m); return `${m.size} item${m.size===1?'':'s'}${c?' · '+short(c)+' cells':''}`; }
 
-/* ---------- Views ---------- */
-/* ---------- Focused lineage view: centre item, inputs left, outputs right ---------- */
+/* ---------- Cytoscape ---------- */
+let cy=null;
+function styles(){
+  const bold=$('linkStyle').value==='bold';
+  return [
+   {selector:'node',style:{'label':'data(label)','color':'#e7ebf5','font-size':11,'text-wrap':'wrap','min-zoomed-font-size':5,'border-width':0,'background-color':'#1b2439'}},
+   {selector:'node[kind="lane"]',style:{'shape':'round-rectangle','background-color':'data(fill)','background-opacity':.07,'border-width':1.5,'border-color':'data(fill)','border-opacity':.6,
+     'text-valign':'top','text-halign':'center','text-margin-y':-8,'font-size':15,'font-weight':600,'padding':26,'text-max-width':600,'corner-radius':14,'line-height':1.4}},
+   {selector:'node[kind="side"]',style:{'shape':'round-rectangle','background-color':'data(fill)','background-opacity':.05,'border-width':1,'border-color':'data(fill)','border-opacity':.45,
+     'text-valign':'top','text-halign':'center','text-margin-y':-6,'font-size':12,'font-weight':600,'color':'#c9d2ea','padding':14,'corner-radius':10}},
+   {selector:'node[kind="box"]',style:{'shape':'round-rectangle','background-color':'#141c30','background-opacity':.9,'border-width':1.4,'border-color':'data(fill)','border-opacity':.7,
+     'text-valign':'top','text-halign':'center','text-margin-y':-6,'font-size':12,'font-weight':600,'color':'#c9d2ea','padding':16,'corner-radius':10,'text-max-width':400}},
+   {selector:'node[kind="mod"], node[kind="card"]',style:{'shape':'round-rectangle','width':'data(w)','height':'data(h)','background-color':'data(bg)','border-width':1.6,'border-color':'data(fill)',
+     'text-valign':'center','text-halign':'center','text-max-width':'data(tw)','line-height':1.35,'corner-radius':7}},
+   {selector:'node.center',style:{'border-color':'#ffffff','border-width':2.6,'font-weight':600}},
+   {selector:'node[kind="exp"]',style:{'shape':'round-rectangle','width':40,'height':22,'background-color':'#2a3760','border-width':1,'border-color':'#6c8cff','font-size':10,'color':'#dfe6ff','text-valign':'center','text-halign':'center','corner-radius':11}},
+   {selector:'node[kind="more"]',style:{'shape':'round-rectangle','width':'data(w)','height':26,'background-opacity':0,'border-width':1,'border-style':'dashed','border-color':'#3a4870','font-size':11,'color':'#93a0bd','text-valign':'center','text-halign':'center'}},
+   {selector:'node.dim',style:{'opacity':.14}},
+   {selector:'node.hov',style:{'border-width':3,'border-color':'#ffffff'}},
+   {selector:'node.hit',style:{'border-width':3,'border-color':'#6c8cff'}},
+   {selector:'edge',style:{'curve-style':'bezier','width':'data(w)','line-color':'#4a5880','target-arrow-color':'#4a5880','target-arrow-shape':'triangle','arrow-scale':.6,'opacity':bold?.75:.35}},
+   {selector:'edge.taxi',style:{'curve-style':'taxi','taxi-direction':'horizontal','taxi-turn':'50%','taxi-turn-min-distance':10}},
+   {selector:'edge.up',style:{'line-color':'#f5b942','target-arrow-color':'#f5b942','opacity':bold?.95:.7}},
+   {selector:'edge.dn',style:{'line-color':'#2fd3a7','target-arrow-color':'#2fd3a7','opacity':bold?.95:.7}},
+   {selector:'edge.dca',style:{'line-style':'dashed','line-dash-pattern':[5,4],'line-color':'#b38cff','target-arrow-color':'#b38cff'}},
+   {selector:'edge.lane',style:{'curve-style':'unbundled-bezier','control-point-distances':'data(cpd)','control-point-weights':.5,'line-color':'#6a789f','target-arrow-color':'#6a789f','opacity':.85,'arrow-scale':.9,
+     'label':'data(lbl)','font-size':12.5,'color':'#c9d2ea','text-background-color':'#0d1220','text-background-opacity':.9,'text-background-padding':2,'text-background-shape':'round-rectangle'}},
+   {selector:'edge.bad',style:{'line-color':'#ff6b6b','target-arrow-color':'#ff6b6b','line-style':'dashed','line-dash-pattern':[7,5],'color':'#ffb3b3'}},
+   {selector:'edge.tmpup',style:{'line-color':'#f5b942','target-arrow-color':'#f5b942','opacity':.9,'width':1.6}},
+   {selector:'edge.tmpdn',style:{'line-color':'#2fd3a7','target-arrow-color':'#2fd3a7','opacity':.9,'width':1.6}},
+   {selector:'edge.hov',style:{'opacity':1,'width':2.4,'z-index':9}},
+   {selector:'edge.hovup',style:{'line-color':'#f5b942','target-arrow-color':'#f5b942'}},
+   {selector:'edge.hovdn',style:{'line-color':'#2fd3a7','target-arrow-color':'#2fd3a7'}},
+   {selector:'edge.fade',style:{'opacity':.05}}
+  ];
+}
+function makeCy(els){
+  if(cy) cy.destroy();
+  const big=els.length>4000;
+  cy=cytoscape({container:$('cy'),elements:els,layout:{name:'preset',fit:true,padding:46},style:styles(),minZoom:.03,maxZoom:3,
+    textureOnViewport:big,hideEdgesOnViewport:big,motionBlur:false,pixelRatio:big?1:'auto',boxSelectionEnabled:false,autoungrabify:false});
+  cy.on('tap','node',e=>onTap(e.target));
+  cy.on('tap','edge',e=>onTapEdge(e.target));
+  cy.on('mouseover','node',e=>onHover(e.target,e.renderedPosition));
+  cy.on('mouseout','node',e=>onHoverOut(e.target));
+  cy.on('viewport',hideTip);
+}
+const card=(id,kind,label,fill,extra={})=>({data:Object.assign({id,kind,label,fill,bg:'#1b2439',w:200,h:42,tw:190},extra)});
+function twoLine(a,b,n=30){ return trunc(a,n)+'\n'+b; }
+
+/* ---------- Level 1: model map ---------- */
+const L1_TOP=6;
+function modConn(m){ let t=0; (S.g.modOut.get(m.key)||new Map()).forEach(w=>t+=w); (S.g.modIn.get(m.key)||[]).forEach(a=>t+=S.g.modOut.get(a).get(m.key)||0); return t; }
+/* arrange lanes: DISCO layers as Data/Input/System → Calculation → Output; sections as a grid in model order */
+function laneGrid(L){
+  if(S.groupBy==='layer'){ const cols=[['Data','Input','System'],['Calculation','Other'],['Output']].map(c=>c.filter(l=>L.includes(l))).filter(c=>c.length); return cols; }
+  const C=Math.max(1,Math.ceil(Math.sqrt(L.length*1.7))); const cols=[]; L.forEach((l,i)=>{ const c=i%C; (cols[c]=cols[c]||[]).push(l); }); return cols;
+}
+function buildModel(){
+  const els=[], L=lanes().filter(l=>laneMods(l).length), all=!!S.l1All, W=230, H=52;
+  const R=all?Math.max(5,Math.min(24,Math.ceil(Math.sqrt(S.g.modList.length*W/(1.6*H)/Math.max(1,laneGrid(L).length))))):0;
+  const pos=new Map(); let x=0, colIdx=new Map(), laneRows=new Map();
+  const grid=laneGrid(L), K=S.groupBy==='layer'?L1_TOP:4;
+  grid.forEach((col,ci)=>{ let y=0, colW=0; const blocks=[];
+    col.forEach(l=>{ const ms=laneMods(l); let shown=ms;
+      if(!all){ shown=ms.slice().sort((a,b)=>modConn(b)-modConn(a)).slice(0,K); }
+      const rows=all?Math.min(ms.length,R):shown.length+(ms.length>shown.length?1:0), cols=all?Math.ceil(ms.length/rows):1;
+      blocks.push({l,ms,shown,rows,cols}); colW=Math.max(colW,cols*W); });
+    const total=blocks.reduce((t,b)=>t+b.rows*H+110,0)-110; y=-total/2;
+    blocks.forEach(b=>{ const {l,ms,shown,rows,cols}=b; let items=0,cells=0; ms.forEach(m=>{items+=m.size;cells+=modCells(m);});
+      els.push({data:{id:'L:'+l,kind:'lane',lane:l,label:`${laneName(l)}\n${ms.length} modules · ${fmt(items)} line items${cells?' · '+short(cells)+' cells':''}`,fill:laneColor(l),fs:15}});
+      shown.forEach((m,i)=>{ const c=Math.floor(i/rows), r=i%rows; const n=card('m:'+m.key,'mod',twoLine(modLabel(m),modMeta(m),32),modColor(m),{parent:'L:'+l,ref:m.key,w:218,tw:208});
+        n.position={x:x+c*W+W/2+(colW-cols*W)/2,y:y+r*H+H/2}; modBg(n,m); els.push(n); });
+      if(!all&&ms.length>shown.length) els.push({data:{id:'more:'+l,kind:'more',lane:l,parent:'L:'+l,label:`+${ms.length-shown.length} more · open ${laneName(l)}`,w:218},position:{x:x+colW/2,y:y+shown.length*H+H/2}});
+      colIdx.set(l,ci); laneRows.set(l,y); y+=rows*H+110; });
+    x+=colW+330; });
+  const agg=new Map();
+  S.g.modOut.forEach((t,a)=>t.forEach((w,b)=>{ const ma=mod(a),mb=mod(b); if(!ma||!mb||ma.divider||mb.divider) return; const la=laneOf(ma),lb=laneOf(mb); if(la===lb) return; const k=la+'\u0000'+lb; agg.set(k,(agg.get(k)||0)+w); }));
+  agg.forEach((refs,k)=>{ const [la,lb]=k.split('\u0000'); if(!colIdx.has(la)||!colIdx.has(lb)) return;
+    const bad=S.groupBy==='layer'&&LAYER_RANK[la]!==undefined&&LAYER_RANK[lb]!==undefined&&LAYER_RANK[la]>LAYER_RANK[lb];
+    const same=colIdx.get(la)===colIdx.get(lb), dy=laneRows.get(lb)-laneRows.get(la);
+    const cpd=same?(dy>0?-1:1)*(90+Math.abs(dy)*.12):(colIdx.get(lb)>colIdx.get(la)?-25:60);
+    els.push({data:{id:'F:'+k,source:'L:'+la,target:'L:'+lb,la,lb,refs,lbl:fmt(refs)+' refs',cpd,w:Math.min(12,1.5+Math.log2(refs+1)*1.1)},classes:'lane'+(bad?' bad':'')}); });
+  return els;
+}
+function modBg(n,m){ if(S.hl&&isHeat(S.hl)){ let v=0; m.items.forEach(it=>v=Math.max(v,heatVal(it,S.hl))); n.data.bg=tint(heatColor(v/S.heatMax[S.hl]),.55); } }
+
+/* ---------- Level 2: one lane with its feeders and consumers ---------- */
+const SIDE_CAP=60;
+function buildLane(l){
+  const els=[], ms=laneMods(l), inLane=new Set(ms.map(m=>m.key)), W=212, H=54;
+  const R=Math.max(4,Math.min(18,Math.ceil(Math.sqrt(ms.length*1.4)))), rows=Math.min(ms.length,R), cols=Math.ceil(ms.length/rows);
+  els.push({data:{id:'L:'+l,kind:'lane',lane:l,label:`${laneName(l)} · ${ms.length} modules`,fill:laneColor(l)}});
+  ms.forEach((m,i)=>{ const c=Math.floor(i/rows), r=i%rows; const n=card('m:'+m.key,'mod',twoLine(modLabel(m),modMeta(m)),modColor(m),{parent:'L:'+l,ref:m.key}); n.position={x:(c-(cols-1)/2)*W,y:(r-(rows-1)/2)*H}; modBg(n,m); els.push(n); });
+  const F=new Map(), C=new Map();
+  ms.forEach(m=>{ (S.g.modIn.get(m.key)||[]).forEach(a=>{ if(!inLane.has(a)&&!mod(a).divider) F.set(a,(F.get(a)||0)+S.g.modOut.get(a).get(m.key)); });
+    (S.g.modOut.get(m.key)||new Map()).forEach((w,b)=>{ if(!inLane.has(b)&&!mod(b).divider) C.set(b,(C.get(b)||0)+w); }); });
+  const side=(map,dir)=>{ const arr=[...map].sort((a,b)=>b[1]-a[1]); const shown=arr.slice(0,SIDE_CAP);
+    const L=lanes(); shown.sort((a,b)=>L.indexOf(laneOf(mod(a[0])))-L.indexOf(laneOf(mod(b[0])))||b[1]-a[1]);
+    const ROWS=Math.max(8,Math.min(18,rows+4)), nc=Math.ceil(shown.length/ROWS), rr=Math.min(ROWS,shown.length);
+    shown.forEach(([k,w],i)=>{ const c=Math.floor(i/ROWS), r=i%ROWS, m=mod(k);
+      const n=card('m:'+k,'mod',twoLine(modLabel(m),`${laneName(laneOf(m))} · ${fmt(w)} ref${w===1?'':'s'}`,30),modColor(m),{ref:k});
+      n.position={x:dir*(cols*W/2+300+c*W),y:(r-(rr-1)/2)*H}; modBg(n,m); els.push(n); });
+    if(arr.length>SIDE_CAP) els.push({data:{id:'more:'+dir,kind:'more',label:`+${arr.length-SIDE_CAP} more modules`,w:200},position:{x:dir*(cols*W/2+300),y:(rr/2+.6)*H}});
+    return new Set(shown.map(x=>x[0])); };
+  const Fs=side(F,-1), Cs=side(C,1);
+  const innerOK=ms.length<=80; /* very large lanes: skip links inside the lane to keep it fast */
+  ms.forEach(m=>{ (S.g.modOut.get(m.key)||new Map()).forEach((w,b)=>{ if((innerOK&&inLane.has(b))||Cs.has(b)) els.push({data:{id:'e:'+m.key+'>'+b,source:'m:'+m.key,target:'m:'+b,w:Math.min(5,.8+Math.log2(w+1)*.6)}}); }); });
+  Fs.forEach(a=>S.g.modOut.get(a).forEach((w,b)=>{ if(inLane.has(b)) els.push({data:{id:'e:'+a+'>'+b,source:'m:'+a,target:'m:'+b,w:Math.min(5,.8+Math.log2(w+1)*.6)}}); }));
+  return els;
+}
+
+/* ---------- Level 3: a module, its line items in calculation order, and its neighbours ---------- */
+function levels(ids,next){
+  const indeg=new Map(ids.map(i=>[i,0])), lvl=new Map(ids.map(i=>[i,0]));
+  for(const i of ids) for(const t of next(i)) if(indeg.has(t)) indeg.set(t,indeg.get(t)+1);
+  const q=ids.filter(i=>indeg.get(i)===0); let h=0;
+  while(h<q.length){ const i=q[h++]; for(const t of next(i)){ if(!indeg.has(t)) continue; lvl.set(t,Math.max(lvl.get(t),lvl.get(i)+1)); indeg.set(t,indeg.get(t)-1); if(indeg.get(t)===0) q.push(t); } }
+  return lvl;
+}
+function buildModule(mk){
+  const m=mod(mk), els=[], items=[...m.items.values()], ids=items.map(i=>i.id), idSet=new Set(ids), W=224, H=50, ROWS=14;
+  const lv=levels(ids,id=>S.byId.get(id).outs.filter(o=>idSet.has(o.id)).map(o=>o.id));
+  const byL=new Map(); items.forEach(it=>{ const l=lv.get(it.id); if(!byL.has(l)) byL.set(l,[]); byL.get(l).push(it); });
+  const local=[]; let col=0, maxR=0; const levelsN=byL.size, biggest=Math.max(...[...byL.values()].map(a=>a.length));
+  if(levelsN<=6&&biggest<=16){ /* few calculation steps: one column per step */
+    [...byL.keys()].sort((a,b)=>a-b).forEach(l=>{ const arr=byL.get(l).sort((a,b)=>a.idx-b.idx); arr.forEach((it,r)=>local.push([it,col,r])); maxR=Math.max(maxR,arr.length); col++; });
+  } else { /* many steps: fill a block in calculation order so it stays readable */
+    const order=[...byL.keys()].sort((a,b)=>a-b).flatMap(l=>byL.get(l).sort((a,b)=>a.idx-b.idx));
+    const rowsN=Math.max(6,Math.min(18,Math.ceil(Math.sqrt(order.length*W/(1.7*H)))));
+    order.forEach((it,i)=>local.push([it,Math.floor(i/rowsN),i%rowsN])); col=Math.ceil(order.length/rowsN); maxR=Math.min(rowsN,order.length); }
+  const cols=Math.max(1,col), pos=new Map();
+  els.push({data:{id:'B:'+mk,kind:'box',label:`${modLabel(m)}  ·  ${m.layer}${m.section&&S.g.hasSections?' · '+laneName(m.section):''}`,fill:modColor(m)}});
+  local.forEach(([it,c,r])=>{ const x=(c-(cols-1)/2)*W, y=(r-(maxR-1)/2)*H; pos.set(it.id,y); const col=itemColor(it);
+    const n=card(it.id,'card',twoLine(itemLabel(it),metaLine(it),32),col,{parent:'B:'+mk,ref:it.id,w:212,tw:204}); if(S.hl) n.data.bg=tint(col,.32); n.position={x,y}; els.push(n); });
+  const F=new Map(), C=new Map();
+  items.forEach(it=>{ it.ins.forEach(x=>{ if(x.mk!==mk){ if(!F.has(x.mk)) F.set(x.mk,new Map()); F.get(x.mk).set(it.id,(F.get(x.mk).get(it.id)||0)+1); } });
+    it.outs.forEach(o=>{ if(o.mk!==mk){ if(!C.has(o.mk)) C.set(o.mk,new Map()); C.get(o.mk).set(it.id,(C.get(o.mk).get(it.id)||0)+1); } }); });
+  const half=cols*W/2;
+  const side=(map,dir)=>{ let arr=[...map].map(([k,links])=>{ let s=0,n=0,refs=0; links.forEach((c,id)=>{ s+=pos.get(id); n++; refs+=c; }); return [k,links,s/n,refs]; });
+    const total=arr.length; arr.sort((a,b)=>b[3]-a[3]); arr=arr.slice(0,SIDE_CAP); arr.sort((a,b)=>a[2]-b[2]);
+    let y=-(arr.length-1)*H/2; const x=dir*(half+320);
+    arr.forEach(([k,links,,refs])=>{ const mm=mod(k); const n=card('m:'+k,'mod',twoLine(modLabel(mm),`${fmt(refs)} link${refs===1?'':'s'} · ${mm.layer}`),modColor(mm),{ref:k}); n.position={x,y}; modBg(n,mm); els.push(n); y+=H;
+      links.forEach((c,id)=>els.push({data:{id:(dir<0?'m:'+k+'>'+id:id+'>m:'+k),source:dir<0?'m:'+k:id,target:dir<0?id:'m:'+k,w:1.2},classes:(dir<0?'up':'dn')+' taxi'})); });
+    if(total>SIDE_CAP) els.push({data:{id:'more:'+dir,kind:'more',label:`+${total-SIDE_CAP} more modules`,w:200},position:{x,y:y+6}}); };
+  side(F,-1); side(C,1);
+  items.forEach(it=>it.outs.forEach(o=>{ if(idSet.has(o.id)) els.push({data:{id:it.id+'>'+o.id,source:it.id,target:o.id,w:1.1},classes:'taxi'+(S.g.dca.has(it.idx+'>'+o.idx)?' dca':'')}); }));
+  return els;
+}
+
+/* ---------- Level 4: focused lineage (line items, or whole modules for the module chain) ---------- */
 const LIN_STEP=60, LIN_CAP=1500;
-/* The lineage view works for line items (ids like i12) and for whole modules (ids like m:cal02 opex) */
 const isMod=id=>id.startsWith('m:');
 function nbs(id,dir){
   if(isMod(id)){ const k=id.slice(2);
-    if(dir<0){ return [...(S.g.modIn.get(k)||[])].map(x=>[x,(S.g.modOut.get(x)||new Map()).get(k)||0]).sort((a,b)=>b[1]-a[1]).map(x=>'m:'+x[0]); }
+    if(dir<0) return [...(S.g.modIn.get(k)||[])].map(x=>[x,S.g.modOut.get(x).get(k)||0]).sort((a,b)=>b[1]-a[1]).map(x=>'m:'+x[0]);
     return [...(S.g.modOut.get(k)||new Map())].sort((a,b)=>b[1]-a[1]).map(x=>'m:'+x[0]); }
   const it=S.byId.get(id); return (dir<0?it.ins:it.outs).map(x=>x.id);
 }
-function linLabel(id){ return isMod(id)?modLabel(S.g.mods.get(id.slice(2))):itemLabel(S.byId.get(id)); }
-function linNew(id,crumbs){
-  const lin={id,lv:new Map([[id,0]]),crumbs:crumbs||[id]};
-  const steps=+$('depth').value>=99?1:+$('depth').value;
-  S.focus=lin; for(let i=0;i<steps;i++){ linGrow(-1); linGrow(1); }
-  return lin;
-}
+function linLabel(id){ return isMod(id)?modLabel(mod(id.slice(2))):itemLabel(S.byId.get(id)); }
+function linNew(id,crumbs,steps=1){ const lin={id,lv:new Map([[id,0]]),crumbs:crumbs||[id]}; S.focus=lin; for(let i=0;i<steps;i++){ linGrow(-1); linGrow(1); } return lin; }
 function linHidden(id,dir){ let n=0; for(const x of nbs(id,dir)) if(!S.focus.lv.has(x)) n++; return n; }
-function linExpand(id,dir){
-  const lin=S.focus, l=lin.lv.get(id); let n=0;
-  for(const x of nbs(id,dir)){ if(lin.lv.size>=LIN_CAP||n>=LIN_STEP) break; if(lin.lv.has(x)) continue; lin.lv.set(x,l+dir); n++; }
-  return n;
-}
-function linGrow(dir){
-  const lin=S.focus; let edge=0; lin.lv.forEach(v=>{ if(dir<0?v<edge:v>edge) edge=v; });
-  let added=0; for(const [id,l] of [...lin.lv]) if(l===edge) added+=linExpand(id,dir);
-  return added;
-}
-function linElements(){
-  const lin=S.focus, g=S.g, els=[], mods=isMod(lin.id), COLW=mods?320:290, ROWH=mods?44:38, GAPG=mods?0:54;
+function linExpand(id,dir){ const lin=S.focus, l=lin.lv.get(id); let n=0;
+  for(const x of nbs(id,dir)){ if(lin.lv.size>=LIN_CAP||n>=LIN_STEP) break; if(lin.lv.has(x)) continue; lin.lv.set(x,l+dir); n++; } return n; }
+function linGrow(dir){ const lin=S.focus; let edge=0; lin.lv.forEach(v=>{ if(dir<0?v<edge:v>edge) edge=v; });
+  let added=0; for(const [id,l] of [...lin.lv]) if(l===edge) added+=linExpand(id,dir); return added; }
+function linAll(dir){ let n=0,guard=0; while(guard++<60){ const a=linGrow(dir); n+=a; if(!a||S.focus.lv.size>=LIN_CAP) break; } return n; }
+function linFull(){ const lin=S.focus; if(!lin.full){ const up=new Set(),dn=new Set(); for(const [set,dir] of [[up,-1],[dn,1]]){ const st=[lin.id]; while(st.length){ const x=st.pop(); for(const y of nbs(x,dir)) if(y!==lin.id&&!set.has(y)){ set.add(y); st.push(y); } } } lin.full={up:up.size,dn:dn.size}; } return lin.full; }
+function buildLineage(){
+  const lin=S.focus, els=[], mods=isMod(lin.id), COLW=mods?320:300, ROWH=mods?50:50, GAPG=mods?0:56;
   const grp=id=>mods?'':S.byId.get(id).mk;
   const byLevel=new Map(); lin.lv.forEach((l,id)=>{ if(!byLevel.has(l)) byLevel.set(l,[]); byLevel.get(l).push(id); });
   const ypos=new Map([[lin.id,0]]);
-  const place=l=>{ const ids=byLevel.get(l); if(!ids) return;
-    const inner=l<0?l+1:l-1;
+  const place=l=>{ const ids=byLevel.get(l); if(!ids) return; const inner=l<0?l+1:l-1;
     const bary=id=>{ const nb=nbs(id,l<0?1:-1).filter(x=>lin.lv.get(x)===inner&&ypos.has(x)).map(x=>ypos.get(x)); return nb.length?nb.reduce((a,b)=>a+b,0)/nb.length:0; };
     const groups=new Map(); for(const id of ids){ const k=grp(id); if(!groups.has(k)) groups.set(k,[]); groups.get(k).push([bary(id),id]); }
     const gl=[...groups].map(([k,arr])=>{ arr.sort((a,b)=>a[0]-b[0]); return [arr.reduce((t,x)=>t+x[0],0)/arr.length,k,arr]; }).sort((a,b)=>a[0]-b[0]);
@@ -638,326 +757,316 @@ function linElements(){
   for(let l=1;byLevel.has(l);l++) place(l);
   const seenG=new Set();
   lin.lv.forEach((l,id)=>{
-    const x=l*COLW, y=ypos.get(id)||0; let gid=null, ref=id, fill;
-    if(mods){ const m=g.mods.get(id.slice(2)); ref=m.key; fill=colorOf(m.name); }
-    else { const it=S.byId.get(id); fill=colorOf(it.module); gid='g:'+it.mk+'|'+l;
-      if(!seenG.has(gid)){ seenG.add(gid); const m=g.mods.get(it.mk); els.push({data:{id:gid,ref:it.mk,kind:'group',label:modLabel(m),fill:colorOf(m.name),size:20}}); } }
-    const card={data:{id,ref,kind:'card',label:linLabel(id),fill,size:20},position:{x,y},classes:l===0?'center':''}; if(gid) card.data.parent=gid; els.push(card);
-    for(const dir of l===0?[-1,1]:[l<0?-1:1]){ const h=linHidden(id,dir); if(h){ const e={data:{id:'x:'+dir+':'+id,kind:'exp',of:id,dir,label:'+'+fmt(h),size:20},position:{x:x+dir*(l===0?126:118),y}}; if(gid) e.data.parent=gid; els.push(e); } }
+    const x=l*COLW, y=ypos.get(id)||0; let gid=null, n;
+    if(mods){ const m=mod(id.slice(2)); n=card(id,'card',twoLine(modLabel(m),modMeta(m)+' · '+m.layer),modColor(m),{ref:m.key,w:220,tw:210}); modBg(n,m); }
+    else { const it=S.byId.get(id), m=mod(it.mk); gid='G:'+it.mk+'|'+l;
+      if(!seenG.has(gid)){ seenG.add(gid); els.push({data:{id:gid,kind:'box',ref:it.mk,label:modLabel(m),fill:modColor(m)}}); }
+      const col=itemColor(it); n=card(id,'card',twoLine(itemLabel(it),metaLine(it),32),col,{parent:gid,ref:id,w:212,tw:204}); if(S.hl) n.data.bg=tint(col,.32); }
+    n.position={x,y}; if(l===0) n.classes='center'; els.push(n);
+    for(const dir of l===0?[-1,1]:[l<0?-1:1]){ const h=linHidden(id,dir); if(h){ const e={data:{id:'x:'+dir+':'+id,kind:'exp',of:id,dir,label:'+'+fmt(h)},position:{x:x+dir*(mods?136:132),y}}; if(gid) e.data.parent=gid; els.push(e); } }
   });
-  lin.lv.forEach((l,id)=>{ for(const o of nbs(id,1)){ const lo=lin.lv.get(o); if(lo===undefined||(mods&&lo!==l+1)) continue; /* skip side-links inside a column of modules: they cross everything */
-      els.push({data:{id:id+'>'+o,source:id,target:o,width:1.3,thin:1},classes:'lin '+(lo<=0?'eup':'edn')}); } });
+  lin.lv.forEach((l,id)=>{ for(const o of nbs(id,1)){ const lo=lin.lv.get(o); if(lo===undefined||(mods&&lo!==l+1)) continue;
+    const dca=!mods&&S.g.dca.has(S.byId.get(id).idx+'>'+S.byId.get(o).idx);
+    els.push({data:{id:id+'>'+o,source:id,target:o,w:1.3},classes:'taxi '+(lo<=0?'up':'dn')+(dca?' dca':'')}); } });
   return els;
 }
-function linFull(){ const lin=S.focus; if(!lin.full){ if(isMod(lin.id)){ const t=modTrace(lin.id.slice(2),99); lin.full={up:t.up.size,dn:t.dn.size}; } else { const tr=traceItems(S.byId.get(lin.id),99,1e9); lin.full={up:tr.up.size,dn:tr.dn.size}; } } return lin.full; }
-function linRecentre(id){ const lin=S.focus; const i=lin.crumbs.indexOf(id); const crumbs=i>=0?lin.crumbs.slice(0,i+1):lin.crumbs.concat(id); linNew(id,crumbs.slice(-12)); S.sel=id; render(); }
-function lineView(){ if(S.focus) return 'focus'; if(S.moduleFilter) return 'module'; return S.g.items.length<=LINE_LIMIT?'all':'overview'; }
-
-function traceItems(center,depth,cap){
-  const up=new Set(),dn=new Set(); let truncated=false;
-  const walk=(down,set)=>{ let fr=[center],d=0;
-    while(fr.length&&d<depth){ const nx=[];
-      for(const n of fr){ for(const m of (down?n.outs:n.ins)){ if(m===center||set.has(m.id)) continue; if(up.size+dn.size>=cap){truncated=true;return;} set.add(m.id); nx.push(m); } }
-      fr=nx; d++; } };
-  walk(false,up); walk(true,dn); return {up,dn,truncated};
-}
-function itemNode(it,heat,maxL){const deg=it.ins.length+it.outs.length;return {data:{id:it.id,ref:it.id,kind:'item',label:itemLabel(it),fill:heat?heatColor(it.formula.length/maxL):colorOf(it.module),size:14+Math.min(22,deg*2.5)}};}
-
-function elements(){
-  if(S.focus) return linElements();
-  const els=[],heat=$('heat').checked,showLists=$('lists').checked,g=S.g;
-  if(S.mode==='module'){
-    const lens=new Map(); g.mods.forEach(m=>{let t=0;m.items.forEach(it=>t+=it.formula.length);lens.set(m.key,t);}); const maxL=maxOf(lens.values(),x=>x);
-    g.mods.forEach(m=>els.push({data:{id:'m:'+m.key,ref:m.key,kind:'module',label:modLabel(m),fill:heat?heatColor(lens.get(m.key)/maxL):colorOf(m.name),size:g.mods.size>150?12+Math.min(18,Math.sqrt(m.size)*2):22+Math.min(40,Math.sqrt(m.size)*6)}}));
-    let links=[]; g.modOut.forEach((targets,a)=>targets.forEach((w,b)=>links.push([a,b,w])));
-    S.linkNote=null;
-    if(!S.showAllLinks&&links.length>MOD_EDGE_MAX){ S.linkNote={total:links.length}; links.sort((x,y)=>y[2]-x[2]); links=links.slice(0,MOD_EDGE_MAX); }
-    for(const [a,b,w] of links) els.push({data:{id:'e:'+a+'>'+b,source:'m:'+a,target:'m:'+b,w,width:Math.min(7,1.2+Math.log2(w+1)*1.3),thin:Math.min(3,.7+Math.log2(w+1)*.45)}});
-    if(showLists){ allLists().forEach(l=>els.push({data:{id:'l:'+l,kind:'list',label:listLabel(l),fill:PALETTE.LIST,size:16}}));
-      g.mods.forEach(m=>m.lists.forEach(l=>els.push({data:{id:'le:'+l+'>'+m.key,source:'l:'+l,target:'m:'+m.key,kind:'list',width:1,thin:.7}}))); }
-    return els;
-  }
-  const view=lineView(); let set=null;
-  if(view==='overview') return els;
-  if(view==='all') set=g.items;
-  else if(view==='module'){ const ids=new Set(); const mod=g.mods.get(S.moduleFilter);
-    g.items.forEach(it=>{ if(it.mk===S.moduleFilter){ ids.add(it.id); } });
-    if(ids.size<LINE_LIMIT) [...ids].forEach(id=>{ const it=S.byId.get(id); for(const x of it.ins){ if(ids.size>=LINE_LIMIT) break; ids.add(x.id);} for(const x of it.outs){ if(ids.size>=LINE_LIMIT) break; ids.add(x.id);} });
-    set=[...ids].map(id=>S.byId.get(id)); }
-  else return linElements(); /* unreachable: handled above */
-  const ids=new Set(set.map(i=>i.id)), maxL=maxOf(set,i=>i.formula.length);
-  const grouped=$('groupMods').checked;
-  if(grouped){ const seenG=new Set(); for(const it of set){ if(!seenG.has(it.mk)){ seenG.add(it.mk); const m=g.mods.get(it.mk); els.push({data:{id:'g:'+it.mk,ref:it.mk,kind:'group',label:modLabel(m),fill:colorOf(m.name),size:20}}); } } }
-  for(const it of set){ const n=itemNode(it,heat,maxL); if(grouped) n.data.parent='g:'+it.mk; els.push(n); }
-  for(const it of set) for(const o of it.outs) if(ids.has(o.id)) els.push({data:{id:it.id+'>'+o.id,source:it.id,target:o.id,width:1.3,thin:.8}});
-  if(showLists){ const used=new Set(); for(const it of set) for(const l of it.lists){ if(!used.has(l)){used.add(l);els.push({data:{id:'l:'+l,kind:'list',label:listLabel(l),fill:PALETTE.LIST,size:14}});} els.push({data:{id:'le:'+l+'>'+it.id,source:'l:'+l,target:it.id,kind:'list',width:.8,thin:.6}}); } }
-  return els;
-}
-
-function render(){
-  if(!S.g) return;
-  const els=elements(); const {nodes,edges}=makeCy(els);
-  $('overview').style.display=(S.mode==='line'&&lineView()==='overview')?'flex':'none';
-  if(S.mode==='line'&&lineView()==='overview'){
-    $('ovTitle').textContent='This model has '+fmt(S.g.items.length)+' line items';
-    $('ovChips').innerHTML=[...S.g.mods.values()].sort((a,b)=>b.size-a.size).slice(0,30).map(m=>`<span class="chip" data-mod="${esc(m.key)}">${esc(modLabel(m))}<small>${m.size}</small></span>`).join('');
-  }
-  if(nodes) runLayout(cy.elements());
-  $('legend').innerHTML=$('heat').checked?'<span><i style="background:'+heatColor(0)+'"></i>Short formulas</span><span><i style="background:'+heatColor(.6)+'"></i>Long</span><span><i style="background:'+heatColor(1)+'"></i>Longest</span>'
-    :LEGEND.map(([k,l])=>`<span><i style="background:${PALETTE[k]}"></i>${l}</span>`).join('')+($('lists').checked?`<span><i style="background:${PALETTE.LIST};border-radius:2px"></i>List</span>`:'');
-  updateBanner(nodes);
-  if(S.focus){ const f=linFull(); showDetails(cy.getElementById(S.focus.id),f.up,f.dn); if(cy.nodes().length>40) cy.animate({center:{eles:cy.getElementById(S.focus.id)},zoom:Math.max(cy.zoom(),.75)},{duration:350}); }
-  else if(S.sel){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); else {S.sel=null;showDetails(null);} }
-}
-function updateBanner(nodes){
-  const b=$('banner'); let html='';
-  if(S.focus){ const lin=S.focus;
-    const cr=lin.crumbs.map((id,i)=>i===lin.crumbs.length-1?`<b>${esc(linLabel(id))}</b>`:`<a data-crumb="${i}">${esc(linLabel(id))}</a>`).join('<span class="muted">›</span>');
-    let upMore=false,dnMore=false; lin.lv.forEach((l,id)=>{ if(l<=0&&linHidden(id,-1)) upMore=true; if(l>=0&&linHidden(id,1)) dnMore=true; });
-    html=`<span class="crumbs">${cr}</span><span class="spacer"></span><span class="grp"><button id="linUp" ${upMore?'':'disabled style="opacity:.4"'} title="Show one more step of inputs">◀ +1 step</button><button id="linDn" ${dnMore?'':'disabled style="opacity:.4"'} title="Show one more step of outputs">+1 step ▶</button><button id="linExit" title="Back to the full graph">Exit</button></span>`; }
-  else if(S.mode==='line'&&S.moduleFilter){ html='Showing <b>'+esc(modLabel(S.g.mods.get(S.moduleFilter)))+'</b> with direct inputs and outputs'; }
-  const linkOnly=!S.focus&&S.mode==='module'&&S.linkNote;
-  if(linkOnly) html=`Showing the strongest ${fmt(MOD_EDGE_MAX)} of ${fmt(S.linkNote.total)} module links to keep things fast. Tracing still follows every link. <button id="allLinks">Show all links</button>`;
-  b.style.display=html?'flex':'none'; $('bannerText').innerHTML=html; $('bannerBack').style.display=S.history.length&&!linkOnly?'':'none'; $('bannerClose').style.display=linkOnly?'none':'';
-  if(linkOnly) $('allLinks').onclick=()=>{ S.showAllLinks=true; render(); };
-  const lineage=!!S.focus; $('bannerBack').style.display=lineage?'none':$('bannerBack').style.display; $('bannerClose').style.display=lineage?'none':$('bannerClose').style.display;
-  if(lineage){
-    b.querySelectorAll('[data-crumb]').forEach(a=>a.onclick=()=>linRecentre(S.focus.crumbs[+a.dataset.crumb]));
-    $('linUp').onclick=()=>{ if(linGrow(-1)) render(); }; $('linDn').onclick=()=>{ if(linGrow(1)) render(); };
-    $('linExit').onclick=()=>{ const h=S.history.pop(); S.focus=null; S.sel=null; S.moduleFilter=h?h.moduleFilter:null; render(); showDetails(null); };
-  }
-}
-
-/* ---------- Selection ---------- */
-function onTap(node){
-  const k=node.data('kind');
-  if(k==='exp'){ linExpand(node.data('of'),node.data('dir')); render(); return; }
-  if(k==='card'){ if(node.id()===S.focus.id){ const f=linFull(); showDetails(node,f.up,f.dn); return; } return linRecentre(node.id()); }
-  if(node.data('kind')==='group'){ const key=node.data('ref'); const {up,dn}=modTrace(key,+$('depth').value); showDetails(node,up.size,dn.size); return; }
-  if(node.data('kind')==='item'&&S.mode==='line'){ return focusItem(node.id()); }
-  if(node.data('kind')==='module'){ return focusModule(node.data('ref')); }
-  selectInPlace(node);
-}
-function pushHistory(){ S.history.push({moduleFilter:S.moduleFilter}); if(S.history.length>30) S.history.shift(); }
-function focusItem(id){ if(S.focus&&!isMod(S.focus.id)) return linRecentre(id); pushHistory(); linNew(id); S.sel=id; render(); }
-function focusModule(key){ const id='m:'+key; if(S.focus&&isMod(S.focus.id)) return linRecentre(id); pushHistory(); linNew(id); S.sel=id; render(); }
-function cyTrace(node,depth){
-  const up=new Set(),dn=new Set();
-  const walk=(down,set)=>{ let fr=[node],d=0; while(fr.length&&d<depth){ const nx=[]; fr.forEach(n=>{ (down?n.outgoers('node'):n.incomers('node')).forEach(m=>{ if(down&&m.data('kind')==='list') return; if(m.id()!==node.id()&&!set.has(m.id())){set.add(m.id());nx.push(m);} }); }); fr=nx; d++; } };
-  walk(false,up); walk(true,dn); return {up,dn};
-}
-function modTrace(key,depth){
-  const up=new Set(),dn=new Set();
-  const walk=(down,set)=>{ let fr=[key],d=0; while(fr.length&&d<depth){ const nx=[]; for(const k of fr){ const next=down?[...(S.g.modOut.get(k)||new Map()).keys()]:[...(S.g.modIn.get(k)||[])]; for(const m of next){ const id='m:'+m; if(m!==key&&!set.has(id)){set.add(id);nx.push(m);} } } fr=nx; d++; } };
-  walk(false,up); walk(true,dn); return {up,dn};
-}
-function applyHighlight(id,up,dn,fade=true){
-  cy.batch(()=>{
-    cy.elements().removeClass('sel up dn eup edn faded hidden hit chain');
-    const node=cy.getElementById(id); node.addClass('sel');
-    up.forEach(x=>cy.getElementById(x).addClass('up')); dn.forEach(x=>cy.getElementById(x).addClass('dn'));
-    const inUp=x=>up.has(x)||x===id, inDn=x=>dn.has(x)||x===id;
-    cy.edges().forEach(e=>{ const s=e.data('source'),t=e.data('target'); if(up.has(s)&&inUp(t)) e.addClass('eup'); else if(inDn(s)&&dn.has(t)) e.addClass('edn'); });
-    const chainNodes=cy.collection().union(node).union(cy.nodes('.up, .dn')); const parents=chainNodes.parents(); parents.addClass('chain');
-    if(fade){ const keep=chainNodes.union(parents).union(cy.edges('.eup, .edn')); cy.elements().not(keep).addClass($('isolate').checked?'hidden':'faded'); }
-    else cy.edges().not('.eup, .edn').addClass('faded');
-  });
-  startPulse();
-}
-function selectInPlace(node,animate=true){
-  const wasIsolated=cy.$('.hidden').length>0;
-  S.sel=node.id(); const depth=+$('depth').value;
-  let up,dn;
-  if(node.data('kind')==='item'){ const tr=traceItems(S.byId.get(node.id()),depth,1e9); up=tr.up; dn=tr.dn; }
-  else if(node.data('kind')==='module'){ ({up,dn}=modTrace(node.data('ref'),depth)); }
-  else ({up,dn}=cyTrace(node,depth));
-  applyHighlight(node.id(),up,dn,true);
-  if($('isolate').checked) runLayout(cy.elements().not('.hidden'));
-  else if(wasIsolated) runLayout(cy.elements());
-  else if(animate) cy.animate({center:{eles:node},zoom:Math.max(cy.zoom(),cy.nodes().length>150?.45:.9)},{duration:400});
-  showDetails(node,up.size,dn.size);
-}
-function clearSel(){
-  const hadHidden=cy.$('.hidden').length>0; stopPulse();
-  cy.elements().removeClass('sel up dn eup edn faded hidden hit'); S.sel=null; showDetails(null);
-  if(hadHidden) runLayout(cy.elements());
-}
-function startPulse(){ stopPulse(); if($('linkStyle').value!=='bold'||matchMedia('(prefers-reduced-motion: reduce)').matches) return; const hl=cy.edges('.eup, .edn'); if(!hl.length||hl.length>PULSE_MAX) return; let off=0;
-  const tick=()=>{ off=(off+0.6)%120; hl.style('line-dash-offset',-off); S.raf=requestAnimationFrame(tick); }; S.raf=requestAnimationFrame(tick); }
-function stopPulse(){ if(S.raf) cancelAnimationFrame(S.raf); S.raf=0; }
 
 /* ---------- Navigation ---------- */
-function setSeg(id,v){ document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); }
-function drill(mk){ pushHistory(); S.mode='line'; S.moduleFilter=mk; S.focus=null; S.sel=null; setSeg('modeSeg','line'); render(); }
-function goToModule(key){ if(S.mode!=='module'){ S.mode='module'; S.focus=null; S.moduleFilter=null; S.history=[]; setSeg('modeSeg','module'); } focusModule(key); }
-function goToItem(id){
-  if(S.mode!=='line'){ S.mode='line'; S.focus=null; S.moduleFilter=null; S.history=[]; setSeg('modeSeg','line'); }
-  focusItem(id);
+function go(nav){
+  S.nav=nav; hideTip();
+  if(nav.level==='item'){ const it=S.byId.get(nav.id); nav.mk=it.mk; nav.lane=laneOf(mod(it.mk)); if(!S.focus||S.focus.id!==nav.id) linNew(nav.id,nav.crumbs); }
+  else if(nav.level==='chain'){ nav.lane=laneOf(mod(nav.mk)); const id='m:'+nav.mk; if(!S.focus||S.focus.id!==id) linNew(id,nav.crumbs); }
+  else { S.focus=null; if(nav.level==='module') nav.lane=laneOf(mod(nav.mk)); }
+  render();
 }
-function goTo(id){ if(id.startsWith('m:')) return goToModule(id.slice(2)); if(id.startsWith('l:')){ const n=cy.getElementById(id); if(n.length) selectInPlace(n); return; } goToItem(id); }
+function linRecentre(id){ const lin=S.focus; const i=lin.crumbs.indexOf(id); const crumbs=(i>=0?lin.crumbs.slice(0,i+1):lin.crumbs.concat(id)).slice(-12);
+  S.focus=null; if(isMod(id)) go({level:'chain',mk:id.slice(2),crumbs}); else go({level:'item',id,crumbs}); }
+function up(){ const n=S.nav; if(n.level==='item'||n.level==='chain') go({level:'module',mk:n.mk}); else if(n.level==='module') go({level:'lane',lane:n.lane}); else if(n.level==='lane') go({level:'model'}); }
+function goTo(id){ if(!S.g) return; if(id.startsWith('m:')) return go({level:'module',mk:id.slice(2)}); if(id.startsWith('L:')) return go({level:'lane',lane:id.slice(2)}); S.focus=null; go({level:'item',id}); }
+function render(){
+  if(!S.g) return;
+  const n=S.nav; let els;
+  if(n.level==='model') els=buildModel(); else if(n.level==='lane') els=buildLane(n.lane); else if(n.level==='module') els=buildModule(n.mk); else els=buildLineage();
+  makeCy(els); applyFilter(); renderNav(); renderLegend(); renderDetails();
+  if((n.level==='item'||n.level==='chain')&&cy.nodes().length>160) cy.animate({center:{eles:cy.getElementById(S.focus.id)},zoom:Math.max(cy.zoom(),.7)},{duration:300});
+}
+function renderNav(){
+  const n=S.nav, parts=[], lvlName={model:'Model',lane:S.groupBy==='section'?'Section':'Layer',module:'Module',item:'Line item lineage',chain:'Module lineage'}[n.level];
+  navFns=[];
+  const a=(t,fn)=>{ parts.push(`<a data-nav="${navFns.length}">${esc(t)}</a>`); navFns.push(fn); }, b=t=>parts.push(`<b>${esc(t)}</b>`);
+  if(n.level==='model') b('Model'); else a('Model',()=>go({level:'model'}));
+  if(n.lane&&n.level!=='model'){ if(n.level==='lane') b(laneName(n.lane)); else { const ln=n.lane; a(laneName(ln),()=>go({level:'lane',lane:ln})); } }
+  if(n.mk){ const m=mod(n.mk), mk=n.mk; if(n.level==='module') b(modLabel(m)); else a(modLabel(m),()=>go({level:'module',mk})); }
+  if(n.level==='item') b(itemLabel(S.byId.get(n.id)));
+  if(n.level==='chain') b('Module lineage');
+  $('crumbs').innerHTML=parts.join('<span class="muted">›</span>')+`<span class="lvl">${lvlName}</span>`;
+  $('crumbs').querySelectorAll('[data-nav]').forEach(el=>el.onclick=()=>navFns[+el.dataset.nav]());
+  const B=[];
+  if(n.level==='model') B.push(`<button id="nAll" title="Switch between the most-connected modules and every module">${S.l1All?'Show top modules':'Show all modules'}</button>`);
+  if(n.level!=='model') B.push(`<button id="nUp" title="Go up one level">▲ Up</button>`);
+  if(n.level==='module') B.push(`<button id="nChain" title="Module-to-module lineage for this module">Module lineage</button>`);
+  if(n.level==='item'||n.level==='chain'){ let upMore=false,dnMore=false; S.focus.lv.forEach((l,id)=>{ if(l<=0&&linHidden(id,-1)) upMore=true; if(l>=0&&linHidden(id,1)) dnMore=true; });
+    if(n.level==='item') B.push(`<button id="nSrc" ${upMore?'':'disabled'} title="Expand inputs all the way back to their sources">◀◀ To source</button>`);
+    B.push(`<button id="nUp1" ${upMore?'':'disabled'} title="Show one more step of inputs">◀ +1</button><button id="nDn1" ${dnMore?'':'disabled'} title="Show one more step of outputs">+1 ▶</button>`);
+    if(n.level==='item') B.push(`<button id="nOut" ${dnMore?'':'disabled'} title="Expand everything that uses this, all the way to outputs">To output ▶▶</button>`); }
+  $('navBtns').innerHTML=B.join('');
+  const on=(id,fn)=>{ if($(id)) $(id).onclick=fn; };
+  on('nUp',up); on('nAll',()=>{ S.l1All=!S.l1All; render(); }); on('nChain',()=>go({level:'chain',mk:n.mk}));
+  on('nUp1',()=>{ if(linGrow(-1)) render(); }); on('nDn1',()=>{ if(linGrow(1)) render(); });
+  on('nSrc',()=>{ if(linAll(-1)) render(); }); on('nOut',()=>{ if(linAll(1)) render(); });
+  const tr=$('trail');
+  if((n.level==='item'||n.level==='chain')&&S.focus.crumbs.length>1){ tr.style.display='block'; tr.innerHTML='Path: '+S.focus.crumbs.map((id,i)=>i===S.focus.crumbs.length-1?`<b>${esc(linLabel(id))}</b>`:`<a data-crumb="${i}">${esc(linLabel(id))}</a>`).join(' › ');
+    tr.querySelectorAll('[data-crumb]').forEach(el=>el.onclick=()=>linRecentre(S.focus.crumbs[+el.dataset.crumb])); }
+  else tr.style.display='none';
+}
+let navFns=[];
+
+/* ---------- Interaction ---------- */
+function onTap(node){
+  const k=node.data('kind'), n=S.nav;
+  if(k==='lane'||(k==='more'&&node.data('lane'))) return go({level:'lane',lane:node.data('lane')});
+  if(k==='exp'){ linExpand(node.data('of'),node.data('dir')); return render(); }
+  if(k==='mod'){ if(n.level==='module'&&node.data('ref')!==n.mk) return go({level:'module',mk:node.data('ref')}); return go({level:'module',mk:node.data('ref')}); }
+  if(k==='card'){
+    if(n.level==='module') return go({level:'item',id:node.id()});
+    if(S.focus&&node.id()!==S.focus.id) return linRecentre(node.id());
+    return renderDetails();
+  }
+  if(k==='box'&&n.level==='item') return go({level:'module',mk:node.data('ref')});
+}
+function onTapEdge(e){ if(e.hasClass('lane')) showFlow(e.data('la'),e.data('lb')); }
+function onHover(node,p){
+  const k=node.data('kind'); if(k==='lane'||k==='side'||k==='box'||k==='more') return;
+  showTip(node,p);
+  if(k==='mod'&&S.nav.level==='model'){ const key=node.data('ref'), add=[];
+    (S.g.modOut.get(key)||new Map()).forEach((w,b)=>{ if(cy.getElementById('m:'+b).length) add.push({group:'edges',data:{id:'t>'+b,source:'m:'+key,target:'m:'+b,w:Math.min(4,.8+Math.log2(w+1)*.5)},classes:'tmpdn'}); });
+    (S.g.modIn.get(key)||[]).forEach(a=>{ if(cy.getElementById('m:'+a).length) add.push({group:'edges',data:{id:'t<'+a,source:'m:'+a,target:'m:'+key,w:Math.min(4,.8+Math.log2((S.g.modOut.get(a).get(key)||1)+1)*.5)},classes:'tmpup'}); });
+    cy.batch(()=>{ cy.add(add); const keep=new Set(['m:'+key,...add.map(e=>e.data.source),...add.map(e=>e.data.target)]); cy.nodes('[kind="mod"]').forEach(x=>{ if(!keep.has(x.id())) x.addClass('dim hovdim'); }); cy.edges('.lane').addClass('fade'); node.addClass('hov'); });
+    return; }
+  if(k==='mod'||k==='card'){ cy.batch(()=>{ const ce=node.connectedEdges(); cy.edges().not(ce).addClass('fade'); ce.addClass('hov'); node.connectedEdges('[target = "'+node.id()+'"]').addClass('hovup'); node.connectedEdges('[source = "'+node.id()+'"]').addClass('hovdn'); node.addClass('hov'); }); }
+}
+function onHoverOut(node){ hideTip(); if(!cy) return; cy.batch(()=>{ cy.remove('.tmpup, .tmpdn'); cy.$('.hovdim').removeClass('dim hovdim'); cy.$('.fade').removeClass('fade'); cy.$('.hov').removeClass('hov'); cy.$('.hovup,.hovdn').removeClass('hovup hovdn'); applyFilter(); }); }
+function showTip(n,p){
+  const t=$('tip'), k=n.data('kind'); let html='';
+  if(k==='exp'){ const mo=isMod(n.data('of')); html=`Show ${n.data('label').slice(1)} more ${n.data('dir')<0?(mo?'modules that feed it':'inputs'):(mo?'modules it feeds':'items that use it')}`; }
+  else if(k==='mod'||(k==='card'&&isMod(n.id()))){ const m=mod(n.data('ref')); if(!m) return;
+    html=`<b>${esc(modLabel(m))}</b><span class="muted">${m.layer}${m.section&&S.g.hasSections?' · '+esc(laneName(m.section)):''}</span><div class="kv"><div>Line items</div><div>${fmt(m.size)}</div><div>Cells</div><div>${fmt(modCells(m))}</div><div>Feeds from</div><div>${(S.g.modIn.get(m.key)||new Set()).size} modules</div><div>Feeds into</div><div>${(S.g.modOut.get(m.key)||new Map()).size} modules</div></div><div class="note">Click to open</div>`; }
+  else if(k==='card'){ const it=S.byId.get(n.id()); if(!it) return; const p=it.p||{};
+    html=`<b>${esc(itemLabel(it))}</b><span class="muted">${esc(modLabel(mod(it.mk)))} · ${it.ins.length} in · ${it.outs.length} out</span>${S.g.hasMeta?`<div class="kv"><div>Format</div><div>${esc(p.fmt||'—')}</div><div>Summary</div><div>${esc(p.sum||'—')}${p.tsum&&p.tsum!==p.sum?' (time: '+esc(p.tsum)+')':''}</div><div>Time scale</div><div>${esc(p.ts||'—')}</div>${p.cells?`<div>Cells</div><div>${fmt(p.cells)}</div>`:''}${p.effort?`<div>Calc effort</div><div>${p.effort}%</div>`:''}</div>`:''}${it.formula&&!isAnon()?`<code>${esc(trunc(it.formula,300))}</code>`:''}`; }
+  else return;
+  t.innerHTML=html; t.style.display='block';
+  const W=$('canvas').clientWidth, H=$('canvas').clientHeight; let x=p.x+14, y=p.y+14;
+  if(x+t.offsetWidth>W-8) x=p.x-t.offsetWidth-14; if(y+t.offsetHeight>H-8) y=H-t.offsetHeight-8;
+  t.style.left=Math.max(6,x)+'px'; t.style.top=Math.max(6,y)+'px';
+}
+function hideTip(){ $('tip').style.display='none'; }
+
+/* ---------- Colour-by legend and filter ---------- */
+function viewItems(){ if(!cy) return []; return cy.nodes('[kind="card"]').map(n=>S.byId.get(n.id())).filter(Boolean); }
+function renderLegend(){
+  const el=$('legend');
+  if(!S.hl){ el.innerHTML=LAYERS.filter(l=>S.g.modList.some(m=>m.layer===l)).map(l=>`<span><i style="background:${LAYER_COLOR[l]}"></i>${l}</span>`).join('')+(S.nav.level==='model'&&S.groupBy==='layer'?'<span><i style="background:#ff6b6b;border-radius:2px;height:3px;vertical-align:3px"></i>Flow against DISCO</span>':''); return; }
+  if(isHeat(S.hl)){ el.innerHTML=`<span>${HL_NAMES[S.hl]}:</span><span><i style="background:${heatColor(0)}"></i>Low</span><span><i style="background:${heatColor(.6)}"></i>High</span><span><i style="background:${heatColor(1)}"></i>Highest</span>`; return; }
+  const counts=new Map(); const src=viewItems().length?viewItems():S.g.items; src.forEach(it=>{ const c=catOf(it,S.hl); counts.set(c,(counts.get(c)||0)+1); });
+  el.innerHTML=`<span>${HL_NAMES[S.hl]}:</span>`+[...counts].sort((a,b)=>b[1]-a[1]).map(([c,n])=>`<span class="click${S.hlFilter&&S.hlFilter!==c?' off':''}" data-cat="${esc(c)}"><i style="background:${(CAT_COLORS[S.hl]||{})[c]||'#93a0bd'}"></i>${esc(c)} (${fmt(n)})</span>`).join('')+(S.hlFilter?'<span class="click" data-cat="">Show all</span>':'');
+  el.querySelectorAll('[data-cat]').forEach(s=>s.onclick=()=>{ const c=s.dataset.cat; S.hlFilter=!c||S.hlFilter===c?null:c; applyFilter(); renderLegend(); });
+}
+function applyFilter(){
+  if(!cy) return;
+  cy.batch(()=>{ cy.$('.dim').not('.hovdim').removeClass('dim');
+    if(!S.hl||!S.hlFilter||isHeat(S.hl)) return;
+    cy.nodes('[kind="card"]').forEach(n=>{ const it=S.byId.get(n.id()); if(it&&catOf(it,S.hl)!==S.hlFilter) n.addClass('dim'); });
+    cy.nodes('[kind="mod"]').forEach(n=>{ const m=mod(n.data('ref')); let has=false; if(m) m.items.forEach(it=>{ if(catOf(it,S.hl)===S.hlFilter) has=true; }); if(!has) n.addClass('dim'); }); });
+}
 
 /* ---------- Details panel ---------- */
-const CHIP_MAX=60;
-function chip(id,label,cls,sub){return `<span class="chip ${cls||''}" data-go="${esc(id)}" title="${esc(label)}">${esc(label)}${sub?`<small>${esc(sub)}</small>`:''}</span>`;}
-function chipList(arr,fn){ const shown=arr.slice(0,CHIP_MAX).map(fn).join(''); return shown+(arr.length>CHIP_MAX?`<span class="chip">+${fmt(arr.length-CHIP_MAX)} more</span>`:''); }
-function modRows(pairs){
-  if(!pairs.length) return '';
+function bars(pairs,total,colors,attr){ return `<div class="bars">${pairs.map(([k,n])=>`<div class="br" ${attr?`data-hl="${attr}" data-cat="${esc(k)}"`:''}><span>${esc(k)}</span><span class="bt"><i style="width:${Math.max(2,n/total*100)}%;background:${(colors||{})[k]||'#6c8cff'}"></i></span><span>${fmt(n)}</span></div>`).join('')}</div>`; }
+function countBy(items,f){ const c=new Map(); items.forEach(i=>{ const k=f(i); c.set(k,(c.get(k)||0)+1); }); return [...c].sort((a,b)=>b[1]-a[1]); }
+function modRows(pairs,label){
+  if(!pairs.length) return '<p class="muted" style="margin:0">None</p>';
   pairs.sort((a,b)=>b[1]-a[1]);
-  return `<details class="cg" open><summary><span>Sorted by number of references</span><span class="n">${pairs.length}</span></summary>${pairs.slice(0,200).map(([k,w])=>{ const mm=S.g.mods.get(k); return `<div class="ci" data-go="m:${esc(k)}" data-hover="m:${esc(k)}"><span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:${colorOf(mm.name)}"></i>${esc(modLabel(mm))}</span><span class="muted">${fmt(w)} ref${w===1?'':'s'}</span></div>`; }).join('')}${pairs.length>200?`<div class="ci muted">…${fmt(pairs.length-200)} more</div>`:''}</details>`;
+  return `<details class="cg" open><summary><span>${label}</span><span class="n">${pairs.length}</span></summary>${pairs.slice(0,200).map(([k,w])=>{ const mm=mod(k); return `<div class="ci" data-go="m:${esc(k)}" data-hover="m:${esc(k)}"><span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:${modColor(mm)}"></i>${esc(modLabel(mm))}</span><span class="muted">${fmt(w)} ref${w===1?'':'s'}</span></div>`; }).join('')}${pairs.length>200?`<div class="ci muted">…${fmt(pairs.length-200)} more</div>`:''}</details>`;
 }
-/* connections grouped by module, biggest group first */
 function connGroups(arr,cls){
   if(!arr.length) return '';
   const by=new Map(); for(const x of arr){ if(!by.has(x.mk)) by.set(x.mk,[]); by.get(x.mk).push(x); }
   const groups=[...by].sort((a,b)=>b[1].length-a[1].length), open=groups.length<=4;
-  return groups.map(([mk,xs])=>{ const m=S.g.mods.get(mk);
-    return `<details class="cg"${open||xs.length<=3?' open':''}><summary><i style="background:${colorOf(m.name)}"></i><span>${esc(modLabel(m))}</span><span class="n ${cls}">${xs.length}</span></summary>${xs.slice(0,150).map(x=>`<div class="ci" data-go="${x.id}" data-hover="${x.id}"><span>${esc(itemLabel(x))}</span><span class="muted">${x.ins.length} in · ${x.outs.length} out</span></div>`).join('')}${xs.length>150?`<div class="ci muted">…${fmt(xs.length-150)} more</div>`:''}</details>`; }).join('');
+  return groups.map(([mk,xs])=>{ const m=mod(mk);
+    return `<details class="cg"${open||xs.length<=3?' open':''}><summary><i style="background:${modColor(m)}"></i><span>${esc(modLabel(m))}</span><span class="n ${cls}">${xs.length}</span></summary>${xs.slice(0,150).map(x=>`<div class="ci" data-go="${x.id}" data-hover="${x.id}"><span>${esc(itemLabel(x))}</span><span class="muted">${esc(S.g.hasMeta?metaLine(x):x.ins.length+' in · '+x.outs.length+' out')}</span></div>`).join('')}${xs.length>150?`<div class="ci muted">…${fmt(xs.length-150)} more</div>`:''}</details>`; }).join('');
 }
-function showDetails(node,nu,nd,truncated){
-  const el=$('details');
-  if(!S.g){ el.innerHTML='<p class="muted">Load a model, then tap any node to trace what feeds it (amber) and what it feeds (green).</p>'; return; }
-  if(!node||!node.length){ el.innerHTML=`<p class="muted">Tap any node to trace what feeds it (<span class="u">amber</span>) and what it feeds (<span class="d">green</span>). In big models, tapping a line item opens its own lineage view.</p>`+statsHTML(); return; }
-  const kind=node.data('kind'), dv=$('depth').value, depthTxt=+dv>=99?'full chain':dv+' hop'+(dv==='1'?'':'s');
-  const counts=`<div class="counts"><span class="u"><b>${fmt(nu)}</b> upstream</span><span class="d"><b>${fmt(nd)}</b> downstream</span><span class="muted">${depthTxt}${truncated?' (capped)':''}</span></div>`;
-  if((kind==='item'||kind==='card')&&!isMod(node.id())){
-    const it=S.byId.get(node.id()), full=kind==='card'||S.focus;
-    const cnt=full?`<div class="counts"><span class="u"><b>${fmt(nu)}</b> upstream</span><span class="d"><b>${fmt(nd)}</b> downstream</span><span class="muted">full chain</span></div>`:counts;
-    el.innerHTML=`<div class="title">${esc(itemLabel(it))}</div><div class="sub"><span class="chip" data-go="m:${esc(it.mk)}">${esc(modLabel(S.g.mods.get(it.mk)))}</span></div>${cnt}
-     <h3>Inputs (${fmt(it.ins.length)})</h3>${connGroups(it.ins,'u')||'<p class="muted" style="margin:0">None. This is a source (input or data).</p>'}
-     <h3>Used by (${fmt(it.outs.length)})</h3>${connGroups(it.outs,'d')||'<p class="muted" style="margin:0">Nothing references this line item.</p>'}
-     <p class="note">Click a row to centre on it. Hover to find it in the picture.</p>
-     <h3>Formula</h3>${it.formula?(isAnon()?'<p class="muted">Hidden while anonymised.</p>':`<pre class="formula">${esc(it.formula)}</pre>`):'<p class="muted">No formula (input or data line item).</p>'}
-     <h3>Properties</h3><div class="kv"><div>Format</div><div>${esc(it.format||'—')}</div><div>Applies to</div><div>${esc(isAnon()?(it.lists.map(listLabel).join(', ')||'—'):(it.appliesTo||'—'))}</div><div>Length</div><div>${fmt(it.formula.length)} characters</div></div>
-`;
-  } else if(kind==='module'||kind==='group'||kind==='card'){
-    const m=S.g.mods.get(node.data('ref')); const ups=[...(S.g.modIn.get(m.key)||[])], dns=[...(S.g.modOut.get(m.key)||new Map()).keys()];
-    const items=[...m.items.values()];
-    el.innerHTML=`<div class="title">${esc(modLabel(m))}</div><div class="sub">${fmt(m.size)} line items · ${fmt(items.filter(i=>i.formula).length)} with formulas</div>${counts}
-     <button id="drill" class="primary" style="margin:8px 0 4px">Show this module's line items</button>
-     <h3>Feeds from (${ups.length})</h3>${modRows(ups.map(k=>[k,(S.g.modOut.get(k)||new Map()).get(m.key)||0]))||'<p class="muted" style="margin:0">None</p>'}
-     <h3>Feeds into (${dns.length})</h3>${modRows(dns.map(k=>[k,(S.g.modOut.get(m.key)||new Map()).get(k)||0]))||'<p class="muted" style="margin:0">None</p>'}
-     <p class="note">Click a module to centre on it. Hover to find it in the picture.</p>
-     ${m.lists.size?`<h3>Dimensions</h3><div class="chips">${[...m.lists].map(l=>`<span class="chip">${esc(listLabel(l))}</span>`).join('')}</div>`:''}
-     <h3>Line items</h3>${items.slice(0,300).map(i=>`<div class="row" data-go="${i.id}"><span>${esc(itemLabel(i))}</span><span class="muted">${i.ins.length} in · ${i.outs.length} out</span></div>`).join('')}${items.length>300?`<p class="note">…and ${fmt(items.length-300)} more. Use search to find one.</p>`:''}`;
-    $('drill').onclick=()=>drill(m.key);
-  } else {
-    el.innerHTML=`<div class="title">${esc(node.data('label'))}</div><div class="sub">List (from Applies To)</div>${counts}<p class="note">Shows the modules or line items dimensioned by this list.</p>`;
-  }
+function renderDetails(){
+  const el=$('details'), n=S.nav, g=S.g;
+  if(n.level==='model'){
+    let formulas=0; g.items.forEach(i=>{ if(i.formula) formulas++; });
+    const L=lanes();
+    el.innerHTML=`<div class="title">Model overview</div><div class="sub">Grouped by ${S.groupBy==='section'?'model sections (from divider modules)':'DISCO layer (from module name prefixes)'}</div>
+     <div class="stats"><div class="stat"><b>${fmt(g.modList.length)}</b><span>Modules</span></div><div class="stat"><b>${fmt(g.items.length)}</b><span>Line items</span></div><div class="stat"><b>${fmt(formulas)}</b><span>Formulas</span></div><div class="stat"><b>${fmt(g.edgeCount)}</b><span>References${g.dcaCount?' (incl. '+fmt(g.dcaCount)+' DCA)':''}</span></div></div>
+     <h3>${S.groupBy==='section'?'Sections':'Layers'}</h3>${L.map(l=>{ const ms=laneMods(l); let it=0,c=0; ms.forEach(m=>{it+=m.size;c+=modCells(m);}); return `<div class="row" data-go="L:${esc(l)}"><span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:${laneColor(l)}"></i>${esc(laneName(l))}</span><span class="muted">${ms.length} modules · ${fmt(it)} items${c?' · '+short(c)+' cells':''}</span></div>`; }).join('')}
+     <p class="note">Click a ${S.groupBy==='section'?'section':'layer'} or module to drill down. Hover a module to see what it connects to. Click a number on an arrow to list the module pairs behind it.</p>`;
+    return; }
+  if(n.level==='lane'){
+    const ms=laneMods(n.lane).slice().sort((a,b)=>b.size-a.size);
+    const inL=new Map(), outL=new Map(); ms.forEach(m=>{ (S.g.modIn.get(m.key)||[]).forEach(a=>{ const l=laneOf(mod(a)); if(l!==n.lane) inL.set(l,(inL.get(l)||0)+S.g.modOut.get(a).get(m.key)); }); (S.g.modOut.get(m.key)||new Map()).forEach((w,b)=>{ const l=laneOf(mod(b)); if(l!==n.lane) outL.set(l,(outL.get(l)||0)+w); }); });
+    const lr=(map)=>[...map].sort((a,b)=>b[1]-a[1]).map(([l,w])=>`<div class="row" data-go="L:${esc(l)}"><span>${esc(laneName(l))}</span><span class="muted">${fmt(w)} refs</span></div>`).join('')||'<p class="muted" style="margin:0">None</p>';
+    el.innerHTML=`<div class="title">${esc(laneName(n.lane))}</div><div class="sub">${ms.length} modules</div>
+     <h3>Fed by</h3>${lr(inL)}<h3>Feeds into</h3>${lr(outL)}
+     <h3>Modules (largest first)</h3>${ms.map(m=>`<div class="row" data-go="m:${esc(m.key)}" data-hover="m:${esc(m.key)}"><span>${esc(modLabel(m))}</span><span class="muted">${modMeta(m)}</span></div>`).join('')}`;
+    return; }
+  if(n.level==='module'||n.level==='chain'){ return moduleDetails(mod(n.mk)); }
+  if(n.level==='item'){ const sel=cy&&cy.$('node.center'); return itemDetails(S.byId.get(S.focus.id)); }
 }
-$('details').addEventListener('mouseover',e=>{ const r=e.target.closest('[data-hover]'); if(r&&cy){ const n=cy.getElementById(r.dataset.hover); if(n.length) n.addClass('hit'); } });
-$('details').addEventListener('mouseout',e=>{ const r=e.target.closest('[data-hover]'); if(r&&cy){ const n=cy.getElementById(r.dataset.hover); if(n.length) n.removeClass('hit'); } });
+function moduleDetails(m){
+  const el=$('details'), items=[...m.items.values()], md=m.meta||{};
+  const ups=[...(S.g.modIn.get(m.key)||[])].map(k=>[k,S.g.modOut.get(k).get(m.key)||0]), dns=[...(S.g.modOut.get(m.key)||new Map())];
+  const full=S.nav.level==='chain'?linFull():null;
+  el.innerHTML=`<div class="title">${esc(modLabel(m))}</div><div class="sub"><span class="badge" style="border-color:${modColor(m)}">${m.layer}</span>${m.section&&S.g.hasSections?`<span class="badge">${esc(laneName(m.section))}</span>`:''}</div>
+   ${full?`<div class="counts"><span class="u"><b>${fmt(full.up)}</b> modules upstream</span><span class="d"><b>${fmt(full.dn)}</b> downstream</span></div>`:''}
+   <div class="kv"><div>Line items</div><div>${fmt(m.size)} (${fmt(items.filter(i=>i.formula).length)} with formulas)</div>${md.appliesTo&&md.appliesTo!=='-'?`<div>Applies to</div><div>${esc(md.appliesTo)}</div>`:m.lists.size?`<div>Dimensions</div><div>${esc([...m.lists].join(', '))}</div>`:''}${md.ts?`<div>Time scale</div><div>${esc(md.ts)}${md.tr&&md.tr!=='Not Applicable'?' · '+esc(md.tr):''}</div>`:''}${md.ver?`<div>Versions</div><div>${esc(md.ver)}</div>`:''}${modCells(m)?`<div>Cell count</div><div>${fmt(modCells(m))}</div>`:''}</div>
+   ${S.nav.level!=='chain'?`<button class="primary" id="openChain" style="margin:2px 0 6px">Module-to-module lineage</button>`:''}
+   ${S.g.hasMeta?`<h3>Line items by format</h3>${bars(countBy(items,i=>i.p.fmtType||'Unknown'),items.length,CAT_COLORS.fmt,'fmt')}<h3>Summary methods</h3>${bars(countBy(items,i=>i.p.sum||'Unknown'),items.length,CAT_COLORS.sum,'sum')}`:''}
+   <h3>Feeds from (${ups.length})</h3>${modRows(ups,'Sorted by references')}
+   <h3>Feeds into (${dns.length})</h3>${modRows(dns,'Sorted by references')}
+   <h3>Line items</h3>${items.slice(0,400).map(i=>`<div class="row" data-go="${i.id}" data-hover="${i.id}"><span>${esc(itemLabel(i))}</span><span class="muted">${esc(metaLine(i))}</span></div>`).join('')}${items.length>400?`<p class="note">…and ${fmt(items.length-400)} more. Use search to find one.</p>`:''}`;
+  if($('openChain')) $('openChain').onclick=()=>go({level:'chain',mk:m.key});
+}
+function itemDetails(it){
+  const el=$('details'), p=it.p||{}, m=mod(it.mk), f=linFull();
+  const prop=(k,v)=>v&&v!=='-'?`<div>${k}</div><div>${esc(v)}</div>`:'';
+  el.innerHTML=`<div class="title">${esc(itemLabel(it))}</div><div class="sub"><span class="chip link" data-go="m:${esc(it.mk)}">${esc(modLabel(m))}</span><span class="badge" style="border-color:${modColor(m)}">${m.layer}</span></div>
+   <div class="counts"><span class="u"><b>${fmt(f.up)}</b> upstream</span><span class="d"><b>${fmt(f.dn)}</b> downstream</span><span class="muted">full chain</span></div>
+   ${S.g.hasMeta?`<div class="kv" style="margin-top:8px">${prop('Format',p.fmt)}${prop('Summary',p.sum+(p.tsum&&p.tsum!==p.sum?' (time: '+p.tsum+')':''))}${prop('Time scale',p.ts)}${prop('Time range',p.tr)}${prop('Versions',p.ver)}${prop('Applies to',it.appliesTo&&it.appliesTo!=='-'?it.appliesTo:(m.meta.appliesTo?m.meta.appliesTo+' (module)':''))}${p.cells?`<div>Cell count</div><div>${fmt(p.cells)}</div>`:''}${p.effort?`<div>Calc effort</div><div>${p.effort}%</div>`:''}${prop('Parent',p.parent)}${p.isSum==='true'?'<div>Is summary</div><div>Yes</div>':''}${prop('Style',p.style)}${prop('Formula scope',p.scope&&p.scope!=='All Versions'?p.scope:'')}${prop('Code',p.code)}${prop('Data tags',p.tags)}${prop('Read access (DCA)',p.rd)}${prop('Write access (DCA)',p.wr)}</div>`:''}
+   <h3>Formula</h3>${it.formula?(isAnon()?'<p class="muted">Hidden while anonymised.</p>':`<pre class="formula">${esc(it.formula)}</pre>`):'<p class="muted" style="margin:0">No formula (input or data line item).</p>'}
+   ${p.notes&&!isAnon()?`<h3>Notes</h3><p style="margin:0;font-size:13px">${esc(p.notes)}</p>`:''}
+   <h3>Inputs (${fmt(it.ins.length)})</h3>${connGroups(it.ins,'u')||'<p class="muted" style="margin:0">None. This is a source (input or data).</p>'}
+   <h3>Used by (${fmt(it.outs.length)})</h3>${connGroups(it.outs,'d')||'<p class="muted" style="margin:0">Nothing references this line item.</p>'}
+   <p class="note">Click a row to centre on it. Hover to find it in the picture.</p>`;
+}
+function showFlow(la,lb){
+  const pairs=[]; S.g.modOut.forEach((t,a)=>t.forEach((w,b)=>{ const ma=mod(a),mb=mod(b); if(!ma.divider&&!mb.divider&&laneOf(ma)===la&&laneOf(mb)===lb) pairs.push([a,b,w]); }));
+  pairs.sort((x,y)=>y[2]-x[2]);
+  const bad=S.groupBy==='layer'&&LAYER_RANK[la]>LAYER_RANK[lb];
+  $('details').innerHTML=`<div class="title">${esc(laneName(la))} → ${esc(laneName(lb))}</div><div class="sub">${pairs.length} module pairs · ${fmt(pairs.reduce((t,x)=>t+x[2],0))} references</div>
+   ${bad?'<p class="bad" style="font-size:13px;margin:4px 0 10px">This flow runs against DISCO: a later layer feeds an earlier one.</p>':''}
+   ${pairs.slice(0,300).map(([a,b,w])=>`<div class="row" data-go="m:${esc(b)}"><span>${esc(modLabel(mod(a)))} → ${esc(modLabel(mod(b)))}</span><span class="muted">${fmt(w)}</span></div>`).join('')}`;
+  switchTab('details');
+}
+$('details').addEventListener('mouseover',e=>{ const r=e.target.closest('[data-hover]'); if(r&&cy){ const x=cy.getElementById(r.dataset.hover); if(x.length) x.addClass('hit'); } });
+$('details').addEventListener('mouseout',e=>{ const r=e.target.closest('[data-hover]'); if(r&&cy){ const x=cy.getElementById(r.dataset.hover); if(x.length) x.removeClass('hit'); } });
 document.addEventListener('click',e=>{
-  const g=e.target.closest('[data-go]'); if(g&&(g.closest('#details')||g.closest('#health')||g.closest('#insights'))){ if(!g.closest('#details')) switchTab('details'); return goTo(g.dataset.go); }
-  const m=e.target.closest('[data-mod]'); if(m) return drill(m.dataset.mod);
+  const h=e.target.closest('[data-hl]'); if(h&&h.closest('aside')){ S.hl=h.dataset.hl; S.hlFilter=h.dataset.cat; $('hl').value=S.hl; return render(); }
+  const g=e.target.closest('[data-go]'); if(g&&g.closest('aside')){ if(!g.closest('#details')) switchTab('details'); return goTo(g.dataset.go); }
 });
 
-/* ---------- Health ---------- */
-function statsHTML(){ const g=S.g; let f=0; for(const i of g.items) if(i.formula) f++; return `<h3>This model</h3><div class="stats"><div class="stat"><b>${fmt(g.mods.size)}</b><span>Modules</span></div><div class="stat"><b>${fmt(g.items.length)}</b><span>Line items</span></div><div class="stat"><b>${fmt(f)}</b><span>Formulas</span></div><div class="stat"><b>${fmt(g.edgeCount)}</b><span>References</span></div></div>`; }
-function topN(arr,n,score){ const out=[]; for(const x of arr){ const s=score(x); if(s<=0) continue; if(out.length<n||s>out[out.length-1][0]){ out.push([s,x]); out.sort((a,b)=>b[0]-a[0]); if(out.length>n) out.pop(); } } return out.map(p=>p[1]); }
-function renderHealth(){
-  const g=S.g, el=$('health');
-  const unused=g.items.filter(i=>i.outs.length===0&&!OUTPUT_PREFIX.test(i.module.trim()));
-  const longest=topN(g.items,8,i=>i.formula.length), hubs=topN(g.items,6,i=>i.outs.length);
-  const islands=[...g.mods.values()].filter(m=>!g.modIn.has(m.key)&&!g.modOut.has(m.key));
-  const row=(it,right)=>`<div class="row" data-go="${it.id}"><span>${esc(itemLabel(it))} <span class="muted">· ${esc(modLabel(g.mods.get(it.mk)))}</span></span><span class="muted">${right}</span></div>`;
-  el.innerHTML=statsHTML()+
-   `<h3>Not referenced downstream (${fmt(unused.length)})</h3><p class="note" style="margin-top:0">Line items outside report modules that no formula uses. They may still be on a page or in an export, so check before deleting.</p>${unused.slice(0,40).map(i=>row(i,i.formula?'has formula':'input')).join('')||'<p class="muted">None</p>'}${unused.length>40?`<p class="note">…and ${fmt(unused.length-40)} more</p>`:''}
-   <h3>Longest formulas</h3>${longest.map(i=>row(i,fmt(i.formula.length)+' chars')).join('')||'<p class="muted">No formulas</p>'}
-   <h3>Most-used line items</h3>${hubs.map(i=>row(i,fmt(i.outs.length)+' uses')).join('')||'<p class="muted">None</p>'}
-   <h3>Modules with no links (${islands.length})</h3>${islands.slice(0,40).map(m=>`<div class="row" data-go="m:${esc(m.key)}"><span>${esc(modLabel(m))}</span><span class="muted">${m.size} items</span></div>`).join('')||'<p class="muted">None</p>'}`;
+/* ---------- Model profile: breakdowns and architect checks ---------- */
+function renderProfile(){
+  const g=S.g, el=$('profile'), items=g.items; let formulas=0, cells=0; items.forEach(i=>{ if(i.formula) formulas++; }); g.modList.forEach(m=>cells+=modCells(m));
+  const checks=[];
+  if(g.modList.some(m=>LAYER_RANK[m.layer]!==undefined)){
+    const pairs=[]; g.modOut.forEach((t,a)=>t.forEach((w,b)=>{ const ma=mod(a),mb=mod(b); if(LAYER_RANK[ma.layer]!==undefined&&LAYER_RANK[mb.layer]!==undefined&&LAYER_RANK[ma.layer]>LAYER_RANK[mb.layer]) pairs.push([a,b,w]); }));
+    pairs.sort((x,y)=>y[2]-x[2]);
+    checks.push({t:'Flows against DISCO',sev:'high',help:'A later layer feeds an earlier one: outputs feeding calculations or inputs, or calculations feeding data, input or system modules.',rows:pairs.map(([a,b,w])=>({go:'m:'+b,l:modLabel(mod(a))+' → '+modLabel(mod(b)),r:mod(a).layer+' → '+mod(b).layer+' · '+w+' ref'+(w===1?'':'s')}))});
+  }
+  if(g.hasMeta){
+    const nonNum=items.filter(i=>['Text','List','Date','Time period','No data'].includes(i.p.fmtType)&&i.p.sum&&i.p.sum!=='None');
+    checks.push({t:'Non-numeric line items with a summary method',sev:'med',help:'Text, list, date and time period line items rarely need a summary. Setting it to None saves memory and calculation.',rows:nonNum.map(i=>({go:i.id,l:itemLabel(i),r:modLabel(mod(i.mk))+' · '+i.p.fmtType+' · '+i.p.sum}))});
+    const boolSum=items.filter(i=>i.p.fmtType==='Boolean'&&i.p.sum&&i.p.sum!=='None');
+    checks.push({t:'Boolean line items with a summary method',sev:'low',help:'Any/All summaries on booleans are sometimes intended, but often left on by default. Check whether the totals are used.',rows:boolSum.map(i=>({go:i.id,l:itemLabel(i),r:modLabel(mod(i.mk))+' · '+i.p.sum}))});
+    const fsum=items.filter(i=>i.p.sum==='Formula'||i.p.tsum==='Formula');
+    checks.push({t:'Summary method "Formula"',sev:'med',help:'Formula summaries recalculate the formula at every aggregate level, which can be expensive on large hierarchies.',rows:fsum.map(i=>({go:i.id,l:itemLabel(i),r:modLabel(mod(i.mk))}))});
+  }
+  if(items.some(i=>i.p.effort)){ const top=items.filter(i=>i.p.effort>0).sort((a,b)=>b.p.effort-a.p.effort).slice(0,25);
+    checks.push({t:'Highest calculation effort',sev:'info',help:"Anaplan's own calculation effort per line item. The top of this list is where optimisation pays off.",rows:top.map(i=>({go:i.id,l:itemLabel(i),r:i.p.effort+'% · '+modLabel(mod(i.mk))}))}); }
+  if(items.some(i=>i.p.cells)){ const top=items.filter(i=>i.p.cells>0).sort((a,b)=>b.p.cells-a.p.cells).slice(0,25);
+    checks.push({t:'Largest line items by cell count',sev:'info',help:'Big line items drive model size. Check their dimensionality (Applies To, time scale, versions).',rows:top.map(i=>({go:i.id,l:itemLabel(i),r:short(i.p.cells)+' cells · '+modLabel(mod(i.mk))}))}); }
+  const unused=items.filter(i=>i.outs.length===0&&mod(i.mk).layer!=='Output'&&i.p.fmtType!=='No data');
+  checks.push({t:'Not referenced by anything',sev:'low',help:'Line items outside output modules that nothing references. Some may be shown on pages or exported, so check before deleting.',rows:unused.map(i=>({go:i.id,l:itemLabel(i),r:modLabel(mod(i.mk))}))});
+  const longF=items.filter(i=>i.formula.length>300).sort((a,b)=>b.formula.length-a.formula.length);
+  checks.push({t:'Very long formulas (300+ characters)',sev:'low',help:'Long formulas are harder to audit and often hide repeated logic. Consider splitting them into steps.',rows:longF.map(i=>({go:i.id,l:itemLabel(i),r:fmt(i.formula.length)+' chars · '+modLabel(mod(i.mk))}))});
+  const empty=g.modList.filter(m=>m.size===0);
+  checks.push({t:'Empty modules',sev:'low',help:'Modules with no line items (dividers are excluded).',rows:empty.map(m=>({go:'m:'+m.key,l:modLabel(m),r:m.layer}))});
+  const sevName={high:'High',med:'Medium',low:'Low',info:'Info'};
+  el.innerHTML=`<div class="stats"><div class="stat"><b>${fmt(g.modList.length)}</b><span>Modules</span></div><div class="stat"><b>${fmt(items.length)}</b><span>Line items</span></div><div class="stat"><b>${fmt(formulas)}</b><span>Formulas</span></div><div class="stat"><b>${cells?short(cells):fmt(g.edgeCount)}</b><span>${cells?'Cells':'References'}</span></div></div>
+   <p class="note" style="margin-top:-4px">Lineage source: ${g.source==='rb'?"Anaplan's <b>Referenced By</b> column":'formula parsing (export has no Referenced By column)'}${g.dcaCount?`, plus ${fmt(g.dcaCount)} access-driver (DCA) links`:''}.</p>
+   ${g.hasMeta?`<h3>Format</h3>${bars(countBy(items,i=>i.p.fmtType||'Unknown'),items.length,CAT_COLORS.fmt,'fmt')}
+   <h3>Summary method</h3>${bars(countBy(items,i=>i.p.sum||'Unknown'),items.length,CAT_COLORS.sum,'sum')}
+   <h3>Time scale</h3>${bars(countBy(items,i=>i.p.ts||'Unknown'),items.length,CAT_COLORS.ts,'ts')}
+   <h3>Versions</h3>${bars(countBy(items,i=>catOf(i,'ver')),items.length,CAT_COLORS.ver,'ver')}`:''}
+   <h3>Line items by layer</h3>${bars(countBy(items,i=>mod(i.mk).layer),items.length,LAYER_COLOR)}
+   <p class="note">Click a bar to colour the map by it and show only that value.</p>
+   <h3>Architect checks</h3>
+   ${checks.map(c=>`<details class="cg check"><summary><span>${esc(c.t)}</span><span class="sev ${c.sev==='info'?'low':c.sev}">${sevName[c.sev]}</span><span class="n">${fmt(c.rows.length)}</span></summary><div class="ci" style="cursor:default;padding-left:12px"><span class="muted" style="white-space:normal">${esc(c.help)}</span></div>${c.rows.slice(0,200).map(r=>`<div class="ci" data-go="${esc(r.go)}"><span>${esc(r.l)}</span><small>${esc(r.r)}</small></div>`).join('')}${c.rows.length>200?`<div class="ci muted">…${fmt(c.rows.length-200)} more</div>`:''}</details>`).join('')}`;
 }
 
-/* ---------- Insights (rankings) ---------- */
-const IMPACT_POOL=400; /* in big models, downstream impact is measured for the most-used line items */
+/* ---------- Rankings ---------- */
+const IMPACT_POOL=400;
 function crossModules(it){ const s=new Set(); for(const o of it.outs) if(o.mk!==it.mk) s.add(o.mk); return s.size; }
 function downstreamCount(it){ const seen=new Set([it.id]); const st=[it]; while(st.length){ const n=st.pop(); for(const o of n.outs) if(!seen.has(o.id)){ seen.add(o.id); st.push(o); } } return seen.size-1; }
-function impactScores(){
-  if(S.impact) return S.impact;
-  const pool=S.g.items.length<=3000?S.g.items:topN(S.g.items,IMPACT_POOL,i=>i.outs.length);
-  const m=new Map(); for(const it of pool) m.set(it.id,downstreamCount(it)); return S.impact=m;
-}
+function topN(arr,n,score){ const out=[]; for(const x of arr){ const s=score(x); if(s<=0) continue; if(out.length<n||s>out[out.length-1][0]){ out.push([s,x]); out.sort((a,b)=>b[0]-a[0]); if(out.length>n) out.pop(); } } return out.map(p=>p[1]); }
+function impactScores(){ if(S.impact) return S.impact; const pool=S.g.items.length<=3000?S.g.items:topN(S.g.items,IMPACT_POOL,i=>i.outs.length); const m=new Map(); for(const it of pool) m.set(it.id,downstreamCount(it)); return S.impact=m; }
 const RANKS=[
- {key:'refs',label:'Most referenced line items',unit:'uses',help:'How many formulas refer to this line item directly.',items:true,score:i=>i.outs.length},
+ {key:'refs',label:'Most referenced line items',unit:'uses',help:'How many line items refer to this one directly.',items:true,score:i=>i.outs.length},
  {key:'xmod',label:'Used by the most other modules',unit:'modules',help:'How many different modules read this line item. High numbers mean a change ripples widely.',items:true,score:crossModules},
  {key:'impact',label:'Biggest downstream impact',unit:'downstream',help:'Everything that would recalculate if this line item changed, across the full chain.',items:true,score:null},
- {key:'inputs',label:'Most inputs (complex formulas)',unit:'inputs',help:'Line items whose formula reads the most other line items. Good candidates to split or simplify.',items:true,score:i=>i.ins.length},
+ {key:'inputs',label:'Most inputs (complex formulas)',unit:'inputs',help:'Line items that read the most other line items. Good candidates to split or simplify.',items:true,score:i=>i.ins.length},
+ {key:'effort',label:'Highest calculation effort',unit:'%',help:"Anaplan's calculation effort for the line item.",items:true,score:i=>i.p.effort||0},
+ {key:'cells',label:'Largest by cell count',unit:'cells',help:'Cell count of the line item.',items:true,score:i=>i.p.cells||0},
  {key:'long',label:'Longest formulas',unit:'chars',help:'Formula length in characters.',items:true,score:i=>i.formula.length},
  {key:'modUsed',label:'Most depended-on modules',unit:'modules',help:'How many other modules read from this module.',items:false,score:m=>(S.g.modOut.get(m.key)||new Map()).size},
  {key:'modDeps',label:'Modules with the most dependencies',unit:'modules',help:'How many other modules this module reads from.',items:false,score:m=>(S.g.modIn.get(m.key)||new Set()).size},
- {key:'modRefs',label:'Modules referenced most',unit:'references',help:'Total references into this module from formulas in other modules.',items:false,score:m=>{let t=0;(S.g.modOut.get(m.key)||new Map()).forEach(w=>t+=w);return t;}}
+ {key:'modCells',label:'Largest modules by cell count',unit:'cells',help:'Total cells in the module.',items:false,score:m=>modCells(m)}
 ];
-function rankRows(r){
-  let rows;
-  if(r.key==='impact'){ const sc=impactScores(); rows=[...sc].map(([id,v])=>[v,S.byId.get(id)]); }
-  else rows=(r.items?S.g.items:[...S.g.mods.values()]).map(x=>[r.score(x),x]);
-  return rows.filter(x=>x[0]>0).sort((a,b)=>b[0]-a[0]);
-}
 function renderInsights(){
   const el=$('insights'); if(!S.g){ el.innerHTML='<p class="muted">Load a model to see rankings.</p>'; return; }
   S.insight=S.insight||{key:'refs',shown:50};
-  const r=RANKS.find(x=>x.key===S.insight.key), rows=rankRows(r), max=rows.length?rows[0][0]:1;
-  const pooled=r.key==='impact'&&S.g.items.length>3000;
-  const row=([v,x],i)=>{ const id=r.items?x.id:'m:'+x.key, name=r.items?itemLabel(x):modLabel(x), sub=r.items?modLabel(S.g.mods.get(x.mk)):fmt(x.size)+' line items';
-    return `<div class="rank" data-go="${esc(id)}" title="${esc(name)}"><span class="no">${i+1}</span><span class="nm">${esc(name)}</span><span class="val">${fmt(v)} <span class="muted" style="font-weight:400">${r.unit}</span></span><span class="md">${esc(sub)}</span><span class="bar"><i style="width:${Math.max(2,Math.round(v/max*100))}%"></i></span></div>`; };
+  const r=RANKS.find(x=>x.key===S.insight.key);
+  let rows; if(r.key==='impact') rows=[...impactScores()].map(([id,v])=>[v,S.byId.get(id)]); else rows=(r.items?S.g.items:S.g.modList).map(x=>[r.score(x),x]);
+  rows=rows.filter(x=>x[0]>0).sort((a,b)=>b[0]-a[0]); const max=rows.length?rows[0][0]:1, pooled=r.key==='impact'&&S.g.items.length>3000;
+  const row=([v,x],i)=>{ const id=r.items?x.id:'m:'+x.key, name=r.items?itemLabel(x):modLabel(x), sub=r.items?modLabel(mod(x.mk)):modMeta(x);
+    return `<div class="rank" data-go="${esc(id)}" title="${esc(name)}"><span class="no">${i+1}</span><span class="nm">${esc(name)}</span><span class="val">${r.unit==='%'?v:short(v)} <span class="muted" style="font-weight:400">${r.unit}</span></span><span class="md">${esc(sub)}</span><span class="bar"><i style="width:${Math.max(2,Math.round(v/max*100))}%"></i></span></div>`; };
   el.innerHTML=`<div class="ins-head"><select id="insSel">${RANKS.map(x=>`<option value="${x.key}"${x.key===r.key?' selected':''}>${x.label}</option>`).join('')}</select><button id="insCopy" title="Copy this ranking as CSV">Copy CSV</button></div>
-   <p class="note" style="margin:0 0 8px">${r.help}${pooled?` Measured for the ${IMPACT_POOL} most-referenced line items.`:''} Tap a row to trace it.</p>
-   ${rows.slice(0,S.insight.shown).map(row).join('')||'<p class="muted">Nothing to rank.</p>'}
+   <p class="note" style="margin:0 0 8px">${r.help}${pooled?` Measured for the ${IMPACT_POOL} most-referenced line items.`:''} Click a row to open it.</p>
+   ${rows.slice(0,S.insight.shown).map(row).join('')||'<p class="muted">Nothing to rank (this export may not include that column).</p>'}
    ${rows.length>S.insight.shown?`<button id="insMore" style="margin-top:10px;width:100%">Show more (${fmt(rows.length-S.insight.shown)} left)</button>`:''}`;
-  $('insSel').onchange=e=>{ S.insight={key:e.target.value,shown:50}; if(e.target.value==='impact'&&!S.impact){ el.insertAdjacentHTML('beforeend','<p class="muted">Measuring downstream impact…</p>'); setTimeout(renderInsights,30); } else renderInsights(); };
+  $('insSel').onchange=e=>{ S.insight={key:e.target.value,shown:50}; renderInsights(); };
   if($('insMore')) $('insMore').onclick=()=>{ S.insight.shown+=50; renderInsights(); };
-  $('insCopy').onclick=async()=>{
-    const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
-    const lines=[r.items?'Rank,Line item,Module,'+r.unit:'Rank,Module,Line items,'+r.unit].concat(rows.slice(0,5000).map(([v,x],i)=>r.items?[i+1,q(itemLabel(x)),q(modLabel(S.g.mods.get(x.mk))),v].join(','):[i+1,q(modLabel(x)),x.size,v].join(',')));
+  $('insCopy').onclick=async()=>{ const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
+    const lines=[r.items?'Rank,Line item,Module,'+r.unit:'Rank,Module,Line items,'+r.unit].concat(rows.slice(0,5000).map(([v,x],i)=>r.items?[i+1,q(itemLabel(x)),q(modLabel(mod(x.mk))),v].join(','):[i+1,q(modLabel(x)),x.size,v].join(',')));
     try{ await navigator.clipboard.writeText(lines.join('\n')); $('insCopy').textContent='Copied'; }catch(e){ $('insCopy').textContent="Couldn't copy"; }
-    setTimeout(()=>{ if($('insCopy')) $('insCopy').textContent='Copy CSV'; },1500);
-  };
+    setTimeout(()=>{ if($('insCopy')) $('insCopy').textContent='Copy CSV'; },1500); };
 }
 
 /* ---------- Search ---------- */
-function buildSearch(){
-  const idx=[]; S.g.mods.forEach(m=>{const l=modLabel(m);idx.push({id:'m:'+m.key,label:l,low:l.toLowerCase(),sub:'Module'});});
-  for(const it of S.g.items){const l=itemLabel(it);idx.push({id:it.id,label:l,low:l.toLowerCase(),sub:modLabel(S.g.mods.get(it.mk))});}
-  S.search=idx;
-}
+function buildSearch(){ const idx=[]; S.g.modList.forEach(m=>{ const l=modLabel(m); idx.push({id:'m:'+m.key,label:l,low:l.toLowerCase(),sub:'Module · '+m.layer}); });
+  for(const it of S.g.items){ const l=itemLabel(it); idx.push({id:it.id,label:l,low:l.toLowerCase(),sub:modLabel(mod(it.mk))}); } S.search=idx; }
 let sTimer=0,sRes=[],sOn=0;
-function runSearch(){
-  const q=$('search').value.trim().toLowerCase(), box=$('results');
-  if(!q||!S.g){box.style.display='none';return;}
-  const starts=[],has=[];
-  for(const x of S.search){ if(x.low.startsWith(q)){ if(starts.length<40) starts.push(x); } else if(has.length<40&&x.low.includes(q)) has.push(x); if(starts.length>=40) break; }
+function runSearch(){ const q=$('search').value.trim().toLowerCase(), box=$('results'); if(!q||!S.g){box.style.display='none';return;}
+  const starts=[],has=[]; for(const x of S.search){ if(x.low.startsWith(q)){ if(starts.length<40) starts.push(x); } else if(has.length<40&&x.low.includes(q)) has.push(x); if(starts.length>=40) break; }
   sRes=starts.concat(has).slice(0,40); sOn=0;
-  box.innerHTML=sRes.length?sRes.map((x,i)=>`<div data-i="${i}" class="${i===0?'on':''}">${esc(x.label)}<small>${esc(x.sub)}</small></div>`).join(''):'<div class="muted">No matches</div>';
-  box.style.display='block';
-}
+  box.innerHTML=sRes.length?sRes.map((x,i)=>`<div data-i="${i}" class="${i===0?'on':''}">${esc(x.label)}<small>${esc(x.sub)}</small></div>`).join(''):'<div class="muted">No matches</div>'; box.style.display='block'; }
 $('search').addEventListener('input',()=>{clearTimeout(sTimer);sTimer=setTimeout(runSearch,120);});
-$('search').addEventListener('keydown',e=>{
-  const box=$('results'); if(box.style.display!=='block') return;
+$('search').addEventListener('keydown',e=>{ const box=$('results'); if(box.style.display!=='block') return;
   if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); sOn=Math.max(0,Math.min(sRes.length-1,sOn+(e.key==='ArrowDown'?1:-1))); box.querySelectorAll('[data-i]').forEach(d=>d.classList.toggle('on',+d.dataset.i===sOn)); }
-  else if(e.key==='Enter'&&sRes[sOn]){ e.preventDefault(); pick(sRes[sOn]); }
-  else if(e.key==='Escape') box.style.display='none';
-});
+  else if(e.key==='Enter'&&sRes[sOn]){ e.preventDefault(); pick(sRes[sOn]); } else if(e.key==='Escape') box.style.display='none'; });
 $('results').addEventListener('mousedown',e=>{ const d=e.target.closest('[data-i]'); if(d){ e.preventDefault(); pick(sRes[+d.dataset.i]); } });
 $('search').addEventListener('blur',()=>setTimeout(()=>$('results').style.display='none',150));
 function pick(x){ $('results').style.display='none'; $('search').value=x.label; $('search').blur(); switchTab('details'); goTo(x.id); }
 
 /* ---------- Controls ---------- */
-document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{ if(!S.g) return; S.mode=b.dataset.v; S.moduleFilter=null; S.focus=null; S.sel=null; S.history=[]; setSeg('modeSeg',S.mode); render(); showDetails(null); });
-document.querySelectorAll('#layoutSeg button').forEach(b=>b.onclick=()=>{ S.layout=b.dataset.v; setSeg('layoutSeg',S.layout); if(S.g&&cy) runLayout(); });
-$('depth').onchange=()=>{ if(!S.g) return; if(S.focus){ linNew(S.focus.id,S.focus.crumbs); render(); } else if(S.sel){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
-$('linkStyle').onchange=()=>{ if(cy){ cy.style(styleFor(S.big)); if(cy.edges('.eup, .edn').length) startPulse(); else stopPulse(); } };
-$('isolate').onchange=()=>{ if(S.sel&&!S.focus){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
-['heat','lists','groupMods'].forEach(id=>$(id).onchange=()=>{ if(S.g) render(); });
-$('anon').onchange=()=>{ if(!S.g) return; buildSearch(); render(); renderHealth(); renderInsights(); if(!S.sel&&!S.focus) showDetails(null); };
-$('bannerClose').onclick=()=>{ S.focus=null; S.moduleFilter=null; S.sel=null; S.history=[]; render(); showDetails(null); };
-$('bannerBack').onclick=()=>{ const h=S.history.pop(); if(!h) return; S.focus=null; S.moduleFilter=h.moduleFilter; S.sel=null; render(); showDetails(null); };
+function setSeg(id,v){ document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); }
+document.querySelectorAll('#groupSeg button').forEach(b=>b.onclick=()=>{ if(!S.g||b.disabled) return; S.groupBy=b.dataset.v; setSeg('groupSeg',S.groupBy); const n=S.nav; if(n.level==='lane') go({level:'model'}); else { if(n.mk) n.lane=laneOf(mod(n.mk)); render(); } });
+$('hl').onchange=()=>{ S.hl=$('hl').value; S.hlFilter=null; if(S.g) render(); };
+$('linkStyle').onchange=()=>{ if(cy) cy.style(styles()); };
+$('anon').onchange=()=>{ if(!S.g) return; buildSearch(); render(); renderProfile(); renderInsights(); };
 $('zin').onclick=()=>cy&&cy.animate({zoom:{level:cy.zoom()*1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
 $('zout').onclick=()=>cy&&cy.animate({zoom:{level:cy.zoom()/1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
-$('zfit').onclick=()=>cy&&cy.animate({fit:{eles:cy.elements().not('.hidden'),padding:40}},{duration:300});
-$('pngBtn').onclick=()=>{ if(!S.g||!cy||!cy.nodes().length) return; $('pngImg').src=cy.png({full:true,scale:cy.nodes().length>800?1:2,bg:'#0d1220',maxWidth:4000,maxHeight:4000}); $('modal').style.display='flex'; };
+$('zfit').onclick=()=>cy&&cy.animate({fit:{eles:cy.elements(),padding:40}},{duration:300});
+$('pngBtn').onclick=()=>{ if(!cy||!cy.nodes().length) return; $('pngImg').src=cy.png({full:true,scale:cy.nodes().length>600?1:2,bg:'#0d1220',maxWidth:5000,maxHeight:5000}); $('modal').style.display='flex'; };
 $('modalClose').onclick=()=>$('modal').style.display='none';
 $('modal').onclick=e=>{ if(e.target.id==='modal') $('modal').style.display='none'; };
-function switchTab(t){ document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t)); ['details','insights','health'].forEach(id=>$(id).style.display=t===id?'block':'none'); }
+function switchTab(t){ document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t)); ['details','profile','insights'].forEach(id=>$(id).style.display=t===id?'block':'none'); }
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>switchTab(b.dataset.t));
+document.addEventListener('keydown',e=>{ if(e.key==='Backspace'&&!/input|select|textarea/i.test(e.target.tagName)&&S.g&&S.nav.level!=='model'){ e.preventDefault(); up(); } });
+
 </script>
 </body>
 </html>
