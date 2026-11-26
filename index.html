@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; worker-src blob:; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src data:; form-action 'none'">
+<title>Anaplan Lineage Explorer</title>
+<style>
+:root{--bg:#0d1220;--panel:#141b2d;--panel2:#1b2439;--line:#26304a;--text:#e7ebf5;--muted:#93a0bd;--accent:#6c8cff;--up:#f5b942;--dn:#2fd3a7;--radius:10px}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px 8px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;letter-spacing:.2px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#9ef0d4;background:rgba(47,211,167,.1);border:1px solid rgba(47,211,167,.35);padding:3px 10px;border-radius:999px}
+.spacer{flex:1}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;padding:6px 18px 10px;align-items:center}
+button,select,input[type=search],.btn{font:inherit;font-size:13px;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 11px;cursor:pointer}
+button:hover,.btn:hover,select:hover{border-color:#3a4870}
+button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.searchwrap{position:relative;flex:1;min-width:180px;max-width:320px}
+input[type=search]{cursor:text;width:100%}
+#results{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;max-height:360px;overflow:auto;z-index:30;display:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+#results div{padding:7px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#results div:hover,#results div.on{background:var(--panel2)}
+#results small{color:var(--muted);margin-left:6px}
+label.chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
+label.chk input{accent-color:var(--accent)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:var(--panel2);color:var(--muted)}
+.seg button.on{background:#2a3760;color:#fff}
+main{display:grid;grid-template-columns:1fr 340px;gap:12px;padding:0 18px 18px;height:calc(100vh - 128px);min-height:520px}
+#stage{position:relative;background:radial-gradient(circle at 30% 20%,#17203a 0,#0d1220 70%);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+#cy{position:absolute;inset:0}
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:12px;z-index:6}
+.overlay h2{margin:0;font-size:20px;font-weight:600}
+.overlay p{margin:0;color:var(--muted);max-width:480px}
+.overlay ol{color:var(--muted);text-align:left;margin:4px 0 6px;padding-left:20px;max-width:440px}
+#busy{display:none;background:rgba(13,18,32,.85)}
+body.busy #busy{display:flex}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:sp 0.9s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+#overview{display:none}
+#overview .chips{justify-content:center;max-width:640px}
+#drop{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(108,140,255,.15);border:2px dashed var(--accent);border-radius:var(--radius);font-size:18px;z-index:8}
+#banner{position:absolute;top:10px;left:10px;right:10px;display:none;gap:8px;align-items:center;background:rgba(20,27,45,.94);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;z-index:4}
+#banner button{padding:4px 10px}
+#legend{position:absolute;left:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--muted);background:rgba(13,18,32,.75);padding:6px 10px;border-radius:8px;z-index:3}
+#legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+#zoom{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px;z-index:3}
+#zoom button{width:34px;height:34px;padding:0;font-size:16px}
+aside{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;border:0;border-radius:0;background:none;color:var(--muted);padding:11px}
+.tabs button.on{color:#fff;box-shadow:inset 0 -2px 0 var(--accent)}
+.pane{padding:14px 16px;overflow:auto;flex:1}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
+.stat{background:var(--panel2);border-radius:8px;padding:8px 10px}
+.stat b{display:block;font-size:20px;font-weight:600}
+.stat span{font-size:12px;color:var(--muted)}
+h3{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:16px 0 8px}
+h3:first-child{margin-top:0}
+.title{font-size:17px;font-weight:600;margin:0 0 2px;word-break:break-word}
+.sub{color:var(--muted);font-size:13px;margin-bottom:10px}
+.kv{display:grid;grid-template-columns:90px 1fr;gap:4px 10px;font-size:13px;margin-bottom:10px}
+.kv div:nth-child(odd){color:var(--muted)}
+pre.formula{background:#0b1020;border:1px solid var(--line);border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-word;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#cfe0ff;margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;padding:4px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);cursor:pointer;color:var(--text);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip.up{border-color:rgba(245,185,66,.5)}
+.chip.dn{border-color:rgba(47,211,167,.5)}
+.chip small{color:var(--muted);margin-left:4px}
+.counts{display:flex;gap:14px;font-size:13px;margin:6px 0 2px;flex-wrap:wrap}
+.counts b{font-weight:600}
+.u{color:var(--up)}.d{color:var(--dn)}
+.muted{color:var(--muted)}
+.row{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.row:last-child{border:0}
+.row span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note{font-size:12px;color:var(--muted);margin-top:6px}
+.rank{display:grid;grid-template-columns:26px 1fr auto;gap:2px 8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
+.rank:hover .nm{color:#fff;text-decoration:underline}
+.rank .no{color:var(--muted);font-size:12px;text-align:right}
+.rank .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank .val{font-weight:600;font-variant-numeric:tabular-nums}
+.rank .bar{grid-column:2 / 4;height:4px;border-radius:2px;background:var(--panel2);overflow:hidden}
+.rank .bar i{display:block;height:100%;background:var(--accent)}
+.rank .md{grid-column:2 / 4;font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:-2px}
+.ins-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.ins-head select{flex:1;min-width:0}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:40;padding:20px}
+#modal .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;max-width:900px;width:100%;max-height:90vh;overflow:auto}
+#modal img{width:100%;border-radius:8px;background:#0d1220;margin:10px 0}
+.err{color:#ff8a8a;font-size:13px}
+@media (max-width:900px){
+ main{grid-template-columns:1fr;height:auto;padding:0 12px 12px}
+ #stage{height:64vh;min-height:420px}
+ .toolbar{padding:6px 12px 10px}
+ header{padding:12px 12px 6px}
+ .searchwrap{max-width:none}
+}
+</style>
+</head>
+<body>
+<header>
+ <div class="logo">
+  <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="5" cy="13" r="3.2" fill="#2fd3a7"/><circle cx="13" cy="5" r="3.2" fill="#6c8cff"/><circle cx="13" cy="21" r="3.2" fill="#f5b942"/><circle cx="21" cy="13" r="3.2" fill="#ff7a59"/><path d="M7.6 11.4 10.6 7M7.6 14.6l3 4.4M15.6 7l3 4.4M15.6 19l3-4.4" stroke="#93a0bd" stroke-width="1.3" fill="none"/></svg>
+  Anaplan Lineage Explorer
+ </div>
+ <span class="pill" title="All parsing happens in this browser tab. The page's security policy blocks network requests."><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Runs in your browser · nothing is uploaded</span>
+ <span class="spacer"></span>
+</header>
+
+<div class="toolbar">
+ <label class="btn primary" for="file">Load CSV export</label>
+ <input id="file" type="file" accept=".csv,.txt,.tsv" multiple hidden>
+ <button id="sampleBtn">Try sample model</button>
+ <div class="seg" id="modeSeg"><button data-v="module" class="on">Modules</button><button data-v="line">Line items</button></div>
+ <div class="seg" id="layoutSeg"><button data-v="flow" class="on">Flow</button><button data-v="force">Force</button></div>
+ <select id="depth" title="How many steps up and downstream to trace">
+  <option value="99">Trace: full chain</option><option value="1">Trace: 1 hop</option><option value="2">Trace: 2 hops</option><option value="3">Trace: 3 hops</option>
+ </select>
+ <label class="chk"><input type="checkbox" id="isolate">Isolate</label>
+ <label class="chk"><input type="checkbox" id="heat">Heat map</label>
+ <label class="chk"><input type="checkbox" id="lists">Lists</label>
+ <label class="chk"><input type="checkbox" id="anon">Anonymise</label>
+ <div class="searchwrap"><input type="search" id="search" placeholder="Search module or line item" autocomplete="off"><div id="results"></div></div>
+ <button id="pngBtn">Export image</button>
+</div>
+
+<main>
+ <div id="stage">
+  <div id="cy"></div>
+  <div id="banner"><span id="bannerText"></span><span class="spacer"></span><button id="bannerBack">Back</button><button id="bannerClose">Clear</button></div>
+  <div id="empty" class="overlay">
+   <h2>See how your model really flows</h2>
+   <p>Drop one or more Anaplan line item blueprint exports here. The file is read by this page only and never leaves your device.</p>
+   <ol>
+    <li>In Anaplan, open Modules and go to the Line Items tab (or a module's Blueprint view).</li>
+    <li>Select all rows and export as CSV. Keep the Module, Line Item, Format, Formula and Applies To columns.</li>
+    <li>Drag the file here or use Load CSV export.</li>
+   </ol>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><label class="btn primary" for="file">Choose file</label><button id="sampleBtn2">Try sample model</button></div>
+   <div id="err" class="err"></div>
+  </div>
+  <div id="overview" class="overlay">
+   <h2 id="ovTitle"></h2>
+   <p>That's too many to draw at once. Search for a line item to see its lineage, or open a module.</p>
+   <div class="chips" id="ovChips"></div>
+  </div>
+  <div id="busy" class="overlay"><div class="spin"></div><div id="busyText">Working…</div></div>
+  <div id="drop">Drop CSV to map your model</div>
+  <div id="legend" style="display:none"></div>
+  <div id="zoom" style="display:none"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zfit" aria-label="Fit to screen">⤢</button></div>
+ </div>
+ <aside>
+  <div class="tabs"><button data-t="details" class="on">Details</button><button data-t="insights">Insights</button><button data-t="health">Health</button></div>
+  <div class="pane" id="details"><p class="muted">Load a model, then tap any node to trace what feeds it (amber) and what it feeds (green).</p></div>
+  <div class="pane" id="insights" style="display:none"><p class="muted">Load a model to see rankings.</p></div>
+  <div class="pane" id="health" style="display:none"><p class="muted">Load a model to see health checks.</p></div>
+ </aside>
+</main>
+
+<div id="modal"><div class="box"><div style="display:flex;align-items:center;gap:10px"><b>Export image</b><span class="spacer"></span><button id="modalClose">Close</button></div><p class="note">Right-click or long-press the image to save it.</p><img id="pngImg" alt="Lineage graph export"></div></div>
+
+<script id="core">
+/* ---------- Pure parsing core: runs in a Web Worker, no DOM ---------- */
+function norm(s){return String(s==null?'':s).toLowerCase().replace(/\s+/g,' ').trim();}
+
+function parseCSV(text){
+  text=text.replace(/^﻿/,'');
+  const first=text.slice(0,text.indexOf('\n')>=0?text.indexOf('\n'):text.length);
+  const d=(first.split('\t').length>first.split(',').length)?'\t':',';
+  const rows=[];let row=[],f='',q=false,i=0;const n=text.length;
+  while(i<n){
+    const c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){f+='"';i+=2;continue;} q=false; i++; continue; }
+      const j=text.indexOf('"',i); if(j<0){f+=text.slice(i);i=n;continue;} f+=text.slice(i,j); i=j; continue;
+    }
+    if(c==='"'&&f===''){q=true;i++;continue;}
+    if(c===d){row.push(f);f='';i++;continue;}
+    if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n')i++; row.push(f);rows.push(row);row=[];f='';i++;continue; }
+    f+=c;i++;
+  }
+  if(f!==''||row.length){row.push(f);rows.push(row);}
+  return rows.filter(r=>r.length>1||(r[0]&&r[0].trim()!==''));
+}
+
+function rowsToItems(rows,fileName){
+  let h=-1;
+  for(let i=0;i<Math.min(rows.length,10);i++){ if(rows[i].some(c=>/^\s*formula\s*$/i.test(c))){h=i;break;} }
+  if(h<0) throw new Error('Could not find a "Formula" column in '+fileName+'. Export the line item blueprint as CSV.');
+  const H=rows[h].map(c=>norm(c));
+  const col=re=>H.findIndex(c=>re.test(c));
+  const ci={module:col(/^module(\/list)?$|^module name$/),name:col(/^line items?$|^line item name$|^name$/),formula:col(/^formula$/),format:col(/^format$/),applies:col(/^applies to$/)};
+  if(ci.name<0) ci.name=(ci.module===0)?1:0;
+  const fallback=String(fileName||'Module').replace(/\.[a-z]+$/i,'').replace(/\s*[-_]\s*(blueprint|line items?)\s*$/i,'').trim()||'Module';
+  const out=[];
+  for(let i=h+1;i<rows.length;i++){
+    const r=rows[i]; const name=(r[ci.name]||'').trim(); if(!name) continue;
+    const module=ci.module>=0?((r[ci.module]||'').trim()||fallback):fallback;
+    out.push({module,name,formula:ci.formula>=0?(r[ci.formula]||'').trim():'',format:ci.format>=0?(r[ci.format]||'').trim():'',appliesTo:ci.applies>=0?(r[ci.applies]||'').trim():''});
+  }
+  return out;
+}
+
+function splitList(s){return String(s||'').split(/[,;]/).map(x=>x.trim()).filter(x=>x&&!/^(time|versions?|none|\(none\)|-)$/i.test(x));}
+
+/* index items into modules; sets idx, id, mk, lists */
+function indexItems(items){
+  const mods=new Map();
+  for(let i=0;i<items.length;i++){
+    const it=items[i]; it.idx=i; it.id='i'+i; it.mk=norm(it.module);
+    let m=mods.get(it.mk); if(!m){m={key:it.mk,name:it.module,items:new Map(),lists:new Set(),size:0};mods.set(it.mk,m);}
+    m.size++; const k=norm(it.name); if(!m.items.has(k)) m.items.set(k,it);
+    it.lists=splitList(it.appliesTo); for(const l of it.lists) m.lists.add(l);
+  }
+  return mods;
+}
+
+/* Formula tokeniser: Anaplan names containing operators must be quoted, so we can
+   split on operators outside quotes and resolve each piece with hash lookups. */
+const OPS='()[],+-*/=<>&:;{}|^!';
+const KW=new Set(['if','then','else','and','or','not']);
+function tokenize(formula){
+  const segs=[];let cur='',q=false,dq=false;
+  for(let i=0;i<formula.length;i++){
+    const c=formula[i];
+    if(dq){ if(c==='"') dq=false; continue; }
+    if(c==='"'&&!q){ dq=true; if(cur.trim()) segs.push({t:cur.trim(),call:false}); cur=''; continue; }
+    if(c==="'"){q=!q;cur+=c;continue;}
+    if(!q&&OPS.indexOf(c)>=0){ const t=cur.trim(); if(t) segs.push({t,call:c==='('}); cur=''; continue; }
+    cur+=c;
+  }
+  const t=cur.trim(); if(t) segs.push({t,call:false});
+  return segs;
+}
+function splitKeywords(t){
+  const parts=[];let buf='',word='',q=false;
+  const flush=()=>{ if(word){ if(KW.has(word.toLowerCase())){ if(buf.trim()) parts.push(buf.trim()); buf=''; } else buf+=(buf?' ':'')+word; } word=''; };
+  for(const c of t){ if(c==="'"){q=!q;word+=c;} else if(!q&&(c===' '||c==='\t'||c==='\n'||c==='\r')) flush(); else word+=c; }
+  flush(); if(buf.trim()) parts.push(buf.trim());
+  return parts;
+}
+function unq(s){s=s.trim();return (s.length>1&&s[0]==="'"&&s[s.length-1]==="'")?s.slice(1,-1):s;}
+function lookup(t,own,mods){
+  let q=false;
+  for(let i=0;i<t.length;i++){
+    const c=t[i];
+    if(c==="'") q=!q;
+    else if(c==='.'&&!q){ const m=mods.get(norm(unq(t.slice(0,i)))); if(m){ const it=m.items.get(norm(unq(t.slice(i+1)))); if(it) return it; } }
+  }
+  return own.items.get(norm(unq(t)))||null;
+}
+
+/* returns edges as [sourceIdx, targetIdx] */
+function findRefs(items,mods,onProgress){
+  const edges=[],seen=new Set();
+  for(let ti=0;ti<items.length;ti++){
+    const it=items[ti];
+    if(onProgress&&ti%5000===0) onProgress(ti);
+    if(!it.formula) continue;
+    const own=mods.get(it.mk);
+    for(const s of tokenize(it.formula)){
+      if(s.call&&/^[A-Za-z_][\w.]*$/.test(s.t)) continue;
+      const hit=lookup(s.t,own,mods);
+      const hits=hit?[hit]:splitKeywords(s.t).map(p=>lookup(p,own,mods)).filter(Boolean);
+      for(const h of hits){
+        if(h===it) continue;
+        const k=h.idx*1048576+ti; if(seen.has(k)) continue; seen.add(k);
+        edges.push([h.idx,ti]);
+      }
+    }
+  }
+  return edges;
+}
+
+/* convenience for tests: full build in one call */
+function buildGraph(items){
+  const mods=indexItems(items); const pairs=findRefs(items,mods);
+  for(const it of items){it.ins=[];it.outs=[];}
+  const edges=pairs.map(([s,t])=>{items[t].ins.push(items[s]);items[s].outs.push(items[t]);return {source:items[s],target:items[t]};});
+  return {items,mods,edges};
+}
+
+const SAMPLE_CSV=[
+'Module,Line Item,Format,Formula,Applies To',
+'SYS01 Time Settings,Forecast Start,DATE,,',
+'SYS01 Time Settings,Is Actual,BOOLEAN,START() < Forecast Start,',
+'SYS01 Time Settings,Is Forecast,BOOLEAN,NOT Is Actual,',
+'SYS02 Employee Properties,Cost Centre,LIST: Cost Centre,,Employee',
+'SYS02 Employee Properties,Annual Salary,NUMBER,,Employee',
+'SYS02 Employee Properties,Start Date,DATE,,Employee',
+'DAT01 GL Actuals,Amount,NUMBER,,"Cost Centre, Account"',
+'DAT02 Headcount,FTE,NUMBER,,Employee',
+'INP01 Assumptions,Salary Increase %,NUMBER,,Cost Centre',
+'INP01 Assumptions,Super Rate %,NUMBER,,Cost Centre',
+'INP01 Assumptions,Opex Growth %,NUMBER,,Cost Centre',
+'CAL01 Salary Calc,Monthly Salary,NUMBER,"\'SYS02 Employee Properties\'.Annual Salary / 12 * (1 + INP01 Assumptions.Salary Increase %[LOOKUP: \'SYS02 Employee Properties\'.Cost Centre])",Employee',
+'CAL01 Salary Calc,Super,NUMBER,"Monthly Salary * INP01 Assumptions.Super Rate %[LOOKUP: \'SYS02 Employee Properties\'.Cost Centre]",Employee',
+'CAL01 Salary Calc,Employed?,BOOLEAN,"START() >= \'SYS02 Employee Properties\'.Start Date",Employee',
+'CAL01 Salary Calc,Total Cost,NUMBER,"IF Employed? THEN (Monthly Salary + Super) * DAT02 Headcount.FTE ELSE 0",Employee',
+'CAL02 Opex Forecast,Actuals,NUMBER,DAT01 GL Actuals.Amount,"Cost Centre, Account"',
+'CAL02 Opex Forecast,Forecast,NUMBER,"IF \'SYS01 Time Settings\'.Is Forecast THEN PREVIOUS(Forecast) * (1 + INP01 Assumptions.Opex Growth %) ELSE Actuals","Cost Centre, Account"',
+'CAL02 Opex Forecast,Salary Cost,NUMBER,"CAL01 Salary Calc.Total Cost[SUM: \'SYS02 Employee Properties\'.Cost Centre]","Cost Centre, Account"',
+'CAL02 Opex Forecast,Total Opex,NUMBER,Forecast + Salary Cost,"Cost Centre, Account"',
+'CAL03 Variance,Budget,NUMBER,,Cost Centre',
+'CAL03 Variance,Variance,NUMBER,CAL02 Opex Forecast.Total Opex[SUM: Account] - Budget,Cost Centre',
+'CAL03 Variance,Variance %,PERCENT,IF Budget = 0 THEN 0 ELSE Variance / Budget,Cost Centre',
+'CAL03 Variance,Old Budget Uplift,NUMBER,Budget * 1.1,Cost Centre',
+'REP01 P&L Report,Opex,NUMBER,CAL02 Opex Forecast.Total Opex,"Cost Centre, Account"',
+'REP01 P&L Report,Budget,NUMBER,CAL03 Variance.Budget,Cost Centre',
+'REP01 P&L Report,Variance,NUMBER,CAL03 Variance.Variance,Cost Centre',
+'REP01 P&L Report,Variance %,PERCENT,CAL03 Variance.Variance %,Cost Centre',
+'REP02 Headcount Dashboard,FTE,NUMBER,"DAT02 Headcount.FTE[SUM: \'SYS02 Employee Properties\'.Cost Centre]",Cost Centre',
+'REP02 Headcount Dashboard,Salary Cost,NUMBER,"CAL01 Salary Calc.Total Cost[SUM: \'SYS02 Employee Properties\'.Cost Centre]",Cost Centre'
+].join('\n');
+
+if(typeof module!=='undefined') module.exports={parseCSV,rowsToItems,buildGraph,indexItems,findRefs,tokenize,SAMPLE_CSV,norm};
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/layout-base@2.0.1/layout-base.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cose-base@2.2.0/cose-base.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-fcose@2.2.0/cytoscape-fcose.js"></script>
+<script>
+/* ---------- UI ---------- */
+const $=id=>document.getElementById(id);
+const LINE_LIMIT=1500;   // max line items drawn at once
+const FOCUS_CAP=1200;    // max nodes in one lineage trace view
+const PULSE_MAX=300;     // animate flow only on small traces
+const MOD_EDGE_MAX=2000; // strongest module links drawn by default
+const PALETTE={SYS:'#8b95ad',DAT:'#2fd3a7',INP:'#6c8cff',CAL:'#ff7a59',REP:'#ff5fa2',OUT:'#ff5fa2',DSH:'#ff5fa2',EXP:'#ff5fa2',OTHER:'#b38cff',LIST:'#4a5675'};
+const LEGEND=[['SYS','System'],['DAT','Data'],['INP','Input'],['CAL','Calculation'],['REP','Report / output'],['OTHER','Other']];
+const OUTPUT_PREFIX=/^(rep|out|dsh|exp)/i;
+const S={g:null,mode:'module',layout:'flow',sel:null,moduleFilter:null,focus:null,history:[],anonMap:null,raf:0,byId:new Map(),search:[]};
+let hasDagre=false,hasFcose=false;
+try{ if(window.cytoscapeDagre){cytoscape.use(window.cytoscapeDagre);hasDagre=true;} }catch(e){}
+try{ if(window.cytoscapeFcose){cytoscape.use(window.cytoscapeFcose);hasFcose=true;} }catch(e){}
+
+function prefixOf(name){const m=String(name).trim().match(/^([A-Za-z]{3})/);const p=m?m[1].toUpperCase():'';return PALETTE[p]&&p!=='LIST'?p:'OTHER';}
+function colorOf(name){return PALETTE[prefixOf(name)];}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function heatColor(t){const a=[43,58,95],b=[255,107,61],c=[255,214,92];const mix=(x,y,k)=>x.map((v,i)=>Math.round(v+(y[i]-v)*k));const r=t<.6?mix(a,b,t/.6):mix(b,c,(t-.6)/.4);return `rgb(${r.join(',')})`;}
+function maxOf(arr,f){let m=1;for(const x of arr){const v=f(x);if(v>m)m=v;}return m;}
+const fmt=n=>n.toLocaleString();
+function busy(on,msg){document.body.classList.toggle('busy',on);if(msg)$('busyText').textContent=msg;}
+const nextFrame=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
+
+/* ---------- Cytoscape instance (recreated per view so big views get cheaper renderer settings) ---------- */
+let cy=null;
+function styleFor(big){return [
+ {selector:'node',style:{'background-color':'data(fill)','label':'data(label)','color':'#e7ebf5','font-size':10,'text-valign':'bottom','text-margin-y':4,'width':'data(size)','height':'data(size)','text-outline-color':'#0d1220','text-outline-width':2,'min-zoomed-font-size':big?9:6,'text-wrap':'ellipsis','text-max-width':140,'border-width':0}},
+ {selector:'node[kind="list"]',style:{'shape':'round-rectangle','color':'#9aa4bd','font-style':'italic'}},
+ {selector:'node[kind="module"]',style:{'font-size':11,'font-weight':600}},
+ {selector:'edge',style:{'width':'data(width)','line-color':'#34405e','target-arrow-color':'#34405e','target-arrow-shape':'triangle','arrow-scale':.8,'curve-style':big?'straight':'bezier','opacity':.75}},
+ {selector:'edge[kind="list"]',style:{'line-style':'dotted','line-color':'#2b3550','target-arrow-color':'#2b3550'}},
+ {selector:'.faded',style:{'opacity':.08}},
+ {selector:'.hidden',style:{'display':'none'}},
+ {selector:'node.sel',style:{'border-width':4,'border-color':'#ffffff','z-index':10}},
+ {selector:'node.up',style:{'border-width':3,'border-color':'#f5b942'}},
+ {selector:'node.dn',style:{'border-width':3,'border-color':'#2fd3a7'}},
+ {selector:'edge.eup',style:{'line-color':'#f5b942','target-arrow-color':'#f5b942','width':big?1.6:3,'opacity':1,'line-style':'dashed','line-dash-pattern':[7,5],'z-index':9}},
+ {selector:'edge.edn',style:{'line-color':'#2fd3a7','target-arrow-color':'#2fd3a7','width':big?1.6:3,'opacity':1,'line-style':'dashed','line-dash-pattern':[7,5],'z-index':9}},
+ {selector:'node.hit',style:{'border-width':4,'border-color':'#6c8cff'}}
+];}
+function makeCy(els){
+  stopPulse(); if(cy) cy.destroy();
+  const nodes=els.filter(e=>!e.data.source).length, edges=els.length-nodes, big=nodes>500||edges>1500;
+  cy=cytoscape({container:$('cy'),elements:els,style:styleFor(big),minZoom:.03,maxZoom:3,
+    textureOnViewport:big,hideEdgesOnViewport:big,motionBlur:false,pixelRatio:big?1:'auto',boxSelectionEnabled:false});
+  cy.on('tap','node',e=>onTap(e.target));
+  cy.on('tap',e=>{ if(e.target===cy&&S.sel&&!S.focus) clearSel(); });
+  return {nodes,edges};
+}
+function layoutOpts(n,e){
+  const anim=n<350;
+  if(S.mode==='module'&&S.layout==='flow'&&n>150) return {name:'preset',positions:discoPositions(),fit:true,padding:40,animate:false};
+  if(S.layout==='flow'&&hasDagre&&n<=800&&e<=900)
+    return {name:'dagre',rankDir:'LR',nodeSep:S.mode==='module'?30:14,rankSep:S.mode==='module'?110:90,edgeSep:8,animate:anim,animationDuration:450,fit:true,padding:40};
+  if(hasFcose) return {name:'fcose',quality:(n>250||e>1500)?'draft':'default',randomize:true,animate:anim,animationDuration:600,nodeRepulsion:()=>S.mode==='module'?9000:4500,idealEdgeLength:()=>S.mode==='module'?110:60,edgeElasticity:()=>.45,nodeSeparation:60,numIter:(n>700||e>1000)?250:2500,packComponents:true,fit:true,padding:40};
+  return {name:'cose',animate:false,numIter:300,fit:true,padding:40};
+}
+/* Big module graphs: lay modules out in DISCO columns (System → Data → Input → Calc → Report). Instant and readable. */
+function discoPositions(){
+  const order=['LIST','SYS','DAT','INP','CAL','OTHER','REP'], groups=new Map(order.map(k=>[k,[]]));
+  cy.nodes().forEach(n=>{ const k=n.data('kind')==='list'?'LIST':(n.data('kind')==='module'?(p=>p==='OUT'||p==='DSH'||p==='EXP'?'REP':p)(prefixOf(S.g.mods.get(n.data('ref')).name)):'OTHER'); groups.get(k).push(n); });
+  const n=cy.nodes().length, W=170, H=46, GAP=220, aspect=Math.max(.8,cy.width()/Math.max(1,cy.height()));
+  const R=Math.max(8,Math.min(90,Math.round(Math.sqrt(n*W/(aspect*H)))));
+  const pos={}; let x=0;
+  for(const k of order){ const g=groups.get(k); if(!g.length) continue;
+    g.sort((a,b)=>String(a.data('label')).localeCompare(String(b.data('label')),undefined,{numeric:true}));
+    const cols=Math.ceil(g.length/R), rows=Math.ceil(g.length/cols);
+    g.forEach((node,i)=>{ const c=Math.floor(i/rows), r=i%rows; pos[node.id()]={x:x+c*W,y:(r-(rows-1)/2)*H}; });
+    x+=cols*W+GAP; }
+  return node=>pos[node.id()];
+}
+function runLayout(eles){ const t=eles||cy.elements().not('.hidden'); const n=t.nodes().length; t.layout(layoutOpts(n,t.edges().length)).run(); }
+
+/* ---------- Loading (Web Worker, falls back to main thread) ---------- */
+function workerSource(){
+  return $('core').textContent+`
+  self.onmessage=e=>{ try{
+    let items=[];
+    for(const f of e.data.files){ postMessage({type:'progress',msg:'Reading '+f.name}); const r=rowsToItems(parseCSV(f.text),f.name); for(const x of r) items.push(x); }
+    if(!items.length) throw new Error('No line items found in the file.');
+    postMessage({type:'progress',msg:'Tracing formulas in '+items.length.toLocaleString()+' line items'});
+    const mods=indexItems(items);
+    const edges=findRefs(items,mods,i=>postMessage({type:'progress',msg:'Tracing formulas: '+Math.round(i/items.length*100)+'%'}));
+    postMessage({type:'done',items:items.map(x=>({module:x.module,name:x.name,formula:x.formula,format:x.format,appliesTo:x.appliesTo})),edges});
+  }catch(err){ postMessage({type:'error',msg:err.message}); } };`;
+}
+function parseInWorker(files){
+  return new Promise((resolve,reject)=>{
+    let w;
+    try{ w=new Worker(URL.createObjectURL(new Blob([workerSource()],{type:'text/javascript'}))); }catch(e){ return reject({fallback:true}); }
+    w.onmessage=e=>{ const m=e.data; if(m.type==='progress') busy(true,m.msg); else if(m.type==='done'){w.terminate();resolve(m);} else if(m.type==='error'){w.terminate();reject(new Error(m.msg));} };
+    w.onerror=e=>{ e.preventDefault(); w.terminate(); reject({fallback:true}); };
+    w.postMessage({files});
+  });
+}
+async function parseOnMain(files){
+  let items=[]; for(const f of files){ busy(true,'Reading '+f.name); await nextFrame(); for(const x of rowsToItems(parseCSV(f.text),f.name)) items.push(x); }
+  if(!items.length) throw new Error('No line items found in the file.');
+  busy(true,'Tracing formulas'); await nextFrame();
+  const mods=indexItems(items); return {items,edges:findRefs(items,mods)};
+}
+async function loadText(files){
+  busy(true,'Reading file'); $('err').textContent='';
+  try{
+    let res; try{ res=await parseInWorker(files); }catch(e){ if(e&&e.fallback) res=await parseOnMain(files); else throw e; }
+    busy(true,'Building views'); await nextFrame();
+    hydrate(res.items,res.edges);
+    $('empty').style.display='none'; $('legend').style.display='flex'; $('zoom').style.display='flex';
+    S.mode=S.g.items.length>LINE_LIMIT?'module':S.mode; setSeg('modeSeg',S.mode);
+    render(); renderHealth(); S.insight={key:'refs',shown:50}; S.impact=null; renderInsights(); showDetails(null);
+  }catch(e){ $('empty').style.display='flex'; $('err').textContent=e.message||String(e); }
+  busy(false);
+}
+function hydrate(items,pairs){
+  const mods=indexItems(items);
+  for(const it of items){it.ins=[];it.outs=[];}
+  for(const [s,t] of pairs){items[t].ins.push(items[s]);items[s].outs.push(items[t]);}
+  const modIn=new Map(),modOut=new Map();
+  for(const [s,t] of pairs){ const a=items[s].mk,b=items[t].mk; if(a===b) continue; if(!modOut.has(a))modOut.set(a,new Map()); modOut.get(a).set(b,(modOut.get(a).get(b)||0)+1); if(!modIn.has(b))modIn.set(b,new Set()); modIn.get(b).add(a); }
+  S.g={items,mods,edgeCount:pairs.length,modOut,modIn};
+  S.byId=new Map(items.map(i=>[i.id,i]));
+  S.sel=null;S.moduleFilter=null;S.focus=null;S.history=[];S.anonMap=null;S.showAllLinks=false;
+  buildSearch();
+}
+async function loadFiles(fileList){
+  const list=[...fileList];   /* copy now: the input is reset right after this call */
+  busy(true,'Reading file'); await nextFrame();
+  const files=await Promise.all(list.map(f=>f.text().then(text=>({name:f.name,text}))));
+  loadText(files);
+}
+$('file').addEventListener('change',e=>{ if(e.target.files.length) loadFiles(e.target.files); e.target.value=''; });
+['sampleBtn','sampleBtn2'].forEach(id=>$(id).onclick=()=>loadText([{name:'Sample model.csv',text:SAMPLE_CSV}]));
+let dragN=0;
+window.addEventListener('dragenter',e=>{e.preventDefault();dragN++;$('drop').style.display='flex';});
+window.addEventListener('dragleave',e=>{dragN--; if(dragN<=0){dragN=0;$('drop').style.display='none';}});
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('drop',e=>{e.preventDefault();dragN=0;$('drop').style.display='none'; if(e.dataTransfer.files.length) loadFiles(e.dataTransfer.files);});
+
+/* ---------- Labels / anonymise ---------- */
+function allLists(){const s=new Set();S.g.mods.forEach(m=>m.lists.forEach(l=>s.add(l)));return [...s];}
+function anon(){ if(S.anonMap) return S.anonMap; const m=new Map(); let mi=0;
+  S.g.mods.forEach(mod=>{ mi++; const p=prefixOf(mod.name); m.set('m:'+mod.key,(p==='OTHER'?'MOD':p)+String(mi).padStart(2,'0')); let li=0; mod.items.forEach(it=>{li++; m.set(it.id,'Line item '+mi+'.'+li);}); });
+  S.g.items.forEach(it=>{ if(!m.has(it.id)) m.set(it.id,'Line item '+it.idx); });
+  let l=0; allLists().forEach(x=>{l++; m.set('l:'+x,'List '+l);}); return S.anonMap=m; }
+const isAnon=()=>$('anon').checked;
+function modLabel(mod){return isAnon()?anon().get('m:'+mod.key):mod.name;}
+function itemLabel(it){return isAnon()?anon().get(it.id):it.name;}
+function listLabel(l){return isAnon()?anon().get('l:'+l):l;}
+
+/* ---------- Views ---------- */
+function lineView(){ if(S.focus) return 'focus'; if(S.moduleFilter) return 'module'; return S.g.items.length<=LINE_LIMIT?'all':'overview'; }
+
+function traceItems(center,depth,cap){
+  const up=new Set(),dn=new Set(); let truncated=false;
+  const walk=(down,set)=>{ let fr=[center],d=0;
+    while(fr.length&&d<depth){ const nx=[];
+      for(const n of fr){ for(const m of (down?n.outs:n.ins)){ if(m===center||set.has(m.id)) continue; if(up.size+dn.size>=cap){truncated=true;return;} set.add(m.id); nx.push(m); } }
+      fr=nx; d++; } };
+  walk(false,up); walk(true,dn); return {up,dn,truncated};
+}
+function itemNode(it,heat,maxL){const deg=it.ins.length+it.outs.length;return {data:{id:it.id,ref:it.id,kind:'item',label:itemLabel(it),fill:heat?heatColor(it.formula.length/maxL):colorOf(it.module),size:14+Math.min(22,deg*2.5)}};}
+
+function elements(){
+  const els=[],heat=$('heat').checked,showLists=$('lists').checked,g=S.g;
+  if(S.mode==='module'){
+    const lens=new Map(); g.mods.forEach(m=>{let t=0;m.items.forEach(it=>t+=it.formula.length);lens.set(m.key,t);}); const maxL=maxOf(lens.values(),x=>x);
+    g.mods.forEach(m=>els.push({data:{id:'m:'+m.key,ref:m.key,kind:'module',label:modLabel(m),fill:heat?heatColor(lens.get(m.key)/maxL):colorOf(m.name),size:g.mods.size>150?12+Math.min(18,Math.sqrt(m.size)*2):22+Math.min(40,Math.sqrt(m.size)*6)}}));
+    let links=[]; g.modOut.forEach((targets,a)=>targets.forEach((w,b)=>links.push([a,b,w])));
+    S.linkNote=null;
+    if(!S.showAllLinks&&links.length>MOD_EDGE_MAX){ S.linkNote={total:links.length}; links.sort((x,y)=>y[2]-x[2]); links=links.slice(0,MOD_EDGE_MAX); }
+    for(const [a,b,w] of links) els.push({data:{id:'e:'+a+'>'+b,source:'m:'+a,target:'m:'+b,w,width:Math.min(7,1.2+Math.log2(w+1)*1.3)}});
+    if(showLists){ allLists().forEach(l=>els.push({data:{id:'l:'+l,kind:'list',label:listLabel(l),fill:PALETTE.LIST,size:16}}));
+      g.mods.forEach(m=>m.lists.forEach(l=>els.push({data:{id:'le:'+l+'>'+m.key,source:'l:'+l,target:'m:'+m.key,kind:'list',width:1}}))); }
+    return els;
+  }
+  const view=lineView(); let set=null;
+  if(view==='overview') return els;
+  if(view==='all') set=g.items;
+  else if(view==='module'){ const ids=new Set(); const mod=g.mods.get(S.moduleFilter);
+    g.items.forEach(it=>{ if(it.mk===S.moduleFilter){ ids.add(it.id); } });
+    if(ids.size<LINE_LIMIT) [...ids].forEach(id=>{ const it=S.byId.get(id); for(const x of it.ins){ if(ids.size>=LINE_LIMIT) break; ids.add(x.id);} for(const x of it.outs){ if(ids.size>=LINE_LIMIT) break; ids.add(x.id);} });
+    set=[...ids].map(id=>S.byId.get(id)); }
+  else { const c=S.byId.get(S.focus.id); const tr=traceItems(c,+$('depth').value,FOCUS_CAP); S.focus.tr=tr;
+    set=[c,...[...tr.up].map(id=>S.byId.get(id)),...[...tr.dn].map(id=>S.byId.get(id))]; }
+  const ids=new Set(set.map(i=>i.id)), maxL=maxOf(set,i=>i.formula.length);
+  for(const it of set) els.push(itemNode(it,heat,maxL));
+  for(const it of set) for(const o of it.outs) if(ids.has(o.id)) els.push({data:{id:it.id+'>'+o.id,source:it.id,target:o.id,width:1.3}});
+  if(showLists){ const used=new Set(); for(const it of set) for(const l of it.lists){ if(!used.has(l)){used.add(l);els.push({data:{id:'l:'+l,kind:'list',label:listLabel(l),fill:PALETTE.LIST,size:14}});} els.push({data:{id:'le:'+l+'>'+it.id,source:'l:'+l,target:it.id,kind:'list',width:.8}}); } }
+  return els;
+}
+
+function render(){
+  if(!S.g) return;
+  const els=elements(); const {nodes,edges}=makeCy(els);
+  $('overview').style.display=(S.mode==='line'&&lineView()==='overview')?'flex':'none';
+  if(S.mode==='line'&&lineView()==='overview'){
+    $('ovTitle').textContent='This model has '+fmt(S.g.items.length)+' line items';
+    $('ovChips').innerHTML=[...S.g.mods.values()].sort((a,b)=>b.size-a.size).slice(0,30).map(m=>`<span class="chip" data-mod="${esc(m.key)}">${esc(modLabel(m))}<small>${m.size}</small></span>`).join('');
+  }
+  if(nodes) runLayout(cy.elements());
+  $('legend').innerHTML=$('heat').checked?'<span><i style="background:'+heatColor(0)+'"></i>Short formulas</span><span><i style="background:'+heatColor(.6)+'"></i>Long</span><span><i style="background:'+heatColor(1)+'"></i>Longest</span>'
+    :LEGEND.map(([k,l])=>`<span><i style="background:${PALETTE[k]}"></i>${l}</span>`).join('')+($('lists').checked?`<span><i style="background:${PALETTE.LIST};border-radius:2px"></i>List</span>`:'');
+  updateBanner(nodes);
+  if(S.mode==='line'&&S.focus){ const tr=S.focus.tr; applyHighlight(S.focus.id,tr.up,tr.dn,false); showDetails(cy.getElementById(S.focus.id),tr.up.size,tr.dn.size,tr.truncated); }
+  else if(S.sel){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); else {S.sel=null;showDetails(null);} }
+}
+function updateBanner(nodes){
+  const b=$('banner'); let html='';
+  if(S.mode==='line'&&S.focus){ const it=S.byId.get(S.focus.id), tr=S.focus.tr;
+    html=`Lineage of <b>${esc(itemLabel(it))}</b> · <span class="u">${fmt(tr.up.size)} up</span> · <span class="d">${fmt(tr.dn.size)} down</span>${tr.truncated?` · <span class="muted">showing first ${fmt(FOCUS_CAP)}, narrow the trace depth for more detail</span>`:''}`; }
+  else if(S.mode==='line'&&S.moduleFilter){ html='Showing <b>'+esc(modLabel(S.g.mods.get(S.moduleFilter)))+'</b> with direct inputs and outputs'; }
+  const linkOnly=S.mode==='module'&&S.linkNote;
+  if(linkOnly) html=`Showing the strongest ${fmt(MOD_EDGE_MAX)} of ${fmt(S.linkNote.total)} module links to keep things fast. Tracing still follows every link. <button id="allLinks">Show all links</button>`;
+  b.style.display=html?'flex':'none'; $('bannerText').innerHTML=html; $('bannerBack').style.display=S.history.length&&!linkOnly?'':'none'; $('bannerClose').style.display=linkOnly?'none':'';
+  if(linkOnly) $('allLinks').onclick=()=>{ S.showAllLinks=true; render(); };
+}
+
+/* ---------- Selection ---------- */
+function onTap(node){
+  if(node.data('kind')==='item'&&S.mode==='line'&&lineView()!=='all'){ return focusItem(node.id()); }
+  selectInPlace(node);
+}
+function pushHistory(){ S.history.push({focus:S.focus?{id:S.focus.id}:null,moduleFilter:S.moduleFilter}); if(S.history.length>30) S.history.shift(); }
+function focusItem(id){ pushHistory(); S.focus={id}; S.sel=id; render(); }
+function cyTrace(node,depth){
+  const up=new Set(),dn=new Set();
+  const walk=(down,set)=>{ let fr=[node],d=0; while(fr.length&&d<depth){ const nx=[]; fr.forEach(n=>{ (down?n.outgoers('node'):n.incomers('node')).forEach(m=>{ if(down&&m.data('kind')==='list') return; if(m.id()!==node.id()&&!set.has(m.id())){set.add(m.id());nx.push(m);} }); }); fr=nx; d++; } };
+  walk(false,up); walk(true,dn); return {up,dn};
+}
+function modTrace(key,depth){
+  const up=new Set(),dn=new Set();
+  const walk=(down,set)=>{ let fr=[key],d=0; while(fr.length&&d<depth){ const nx=[]; for(const k of fr){ const next=down?[...(S.g.modOut.get(k)||new Map()).keys()]:[...(S.g.modIn.get(k)||[])]; for(const m of next){ const id='m:'+m; if(m!==key&&!set.has(id)){set.add(id);nx.push(m);} } } fr=nx; d++; } };
+  walk(false,up); walk(true,dn); return {up,dn};
+}
+function applyHighlight(id,up,dn,fade=true){
+  cy.batch(()=>{
+    cy.elements().removeClass('sel up dn eup edn faded hidden hit');
+    const node=cy.getElementById(id); node.addClass('sel');
+    up.forEach(x=>cy.getElementById(x).addClass('up')); dn.forEach(x=>cy.getElementById(x).addClass('dn'));
+    const inUp=x=>up.has(x)||x===id, inDn=x=>dn.has(x)||x===id;
+    cy.edges().forEach(e=>{ const s=e.data('source'),t=e.data('target'); if(up.has(s)&&inUp(t)) e.addClass('eup'); else if(inDn(s)&&dn.has(t)) e.addClass('edn'); });
+    if(fade){ const keep=cy.collection().union(node).union(cy.nodes('.up, .dn')).union(cy.edges('.eup, .edn')); cy.elements().not(keep).addClass($('isolate').checked?'hidden':'faded'); }
+    else cy.edges().not('.eup, .edn').addClass('faded');
+  });
+  startPulse();
+}
+function selectInPlace(node,animate=true){
+  const wasIsolated=cy.$('.hidden').length>0;
+  S.sel=node.id(); const depth=+$('depth').value;
+  let up,dn;
+  if(node.data('kind')==='item'){ const tr=traceItems(S.byId.get(node.id()),depth,1e9); up=tr.up; dn=tr.dn; }
+  else if(node.data('kind')==='module'){ ({up,dn}=modTrace(node.data('ref'),depth)); }
+  else ({up,dn}=cyTrace(node,depth));
+  applyHighlight(node.id(),up,dn,true);
+  if($('isolate').checked) runLayout(cy.elements().not('.hidden'));
+  else if(wasIsolated) runLayout(cy.elements());
+  else if(animate) cy.animate({center:{eles:node},zoom:Math.max(cy.zoom(),cy.nodes().length>150?.45:.9)},{duration:400});
+  showDetails(node,up.size,dn.size);
+}
+function clearSel(){
+  const hadHidden=cy.$('.hidden').length>0; stopPulse();
+  cy.elements().removeClass('sel up dn eup edn faded hidden hit'); S.sel=null; showDetails(null);
+  if(hadHidden) runLayout(cy.elements());
+}
+function startPulse(){ stopPulse(); if(matchMedia('(prefers-reduced-motion: reduce)').matches) return; const hl=cy.edges('.eup, .edn'); if(!hl.length||hl.length>PULSE_MAX) return; let off=0;
+  const tick=()=>{ off=(off+0.6)%120; hl.style('line-dash-offset',-off); S.raf=requestAnimationFrame(tick); }; S.raf=requestAnimationFrame(tick); }
+function stopPulse(){ if(S.raf) cancelAnimationFrame(S.raf); S.raf=0; }
+
+/* ---------- Navigation ---------- */
+function setSeg(id,v){ document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); }
+function drill(mk){ pushHistory(); S.mode='line'; S.moduleFilter=mk; S.focus=null; S.sel=null; setSeg('modeSeg','line'); render(); }
+function goToModule(key){ if(S.mode!=='module'){ S.mode='module'; S.focus=null; S.moduleFilter=null; setSeg('modeSeg','module'); render(); } const n=cy.getElementById('m:'+key); if(n.length) selectInPlace(n); }
+function goToItem(id){
+  if(S.mode!=='line'){ S.mode='line'; S.focus=null; S.moduleFilter=null; setSeg('modeSeg','line'); if(lineView()==='all') render(); }
+  if(lineView()==='all'){ const n=cy.getElementById(id); if(n.length){ selectInPlace(n); n.flashClass('hit',900); } return; }
+  focusItem(id);
+}
+function goTo(id){ if(id.startsWith('m:')) return goToModule(id.slice(2)); if(id.startsWith('l:')){ const n=cy.getElementById(id); if(n.length) selectInPlace(n); return; } goToItem(id); }
+
+/* ---------- Details panel ---------- */
+const CHIP_MAX=60;
+function chip(id,label,cls,sub){return `<span class="chip ${cls||''}" data-go="${esc(id)}" title="${esc(label)}">${esc(label)}${sub?`<small>${esc(sub)}</small>`:''}</span>`;}
+function chipList(arr,fn){ const shown=arr.slice(0,CHIP_MAX).map(fn).join(''); return shown+(arr.length>CHIP_MAX?`<span class="chip">+${fmt(arr.length-CHIP_MAX)} more</span>`:''); }
+function showDetails(node,nu,nd,truncated){
+  const el=$('details');
+  if(!S.g){ el.innerHTML='<p class="muted">Load a model, then tap any node to trace what feeds it (amber) and what it feeds (green).</p>'; return; }
+  if(!node||!node.length){ el.innerHTML=`<p class="muted">Tap any node to trace what feeds it (<span class="u">amber</span>) and what it feeds (<span class="d">green</span>). In big models, tapping a line item opens its own lineage view.</p>`+statsHTML(); return; }
+  const kind=node.data('kind'), dv=$('depth').value, depthTxt=+dv>=99?'full chain':dv+' hop'+(dv==='1'?'':'s');
+  const counts=`<div class="counts"><span class="u"><b>${fmt(nu)}</b> upstream</span><span class="d"><b>${fmt(nd)}</b> downstream</span><span class="muted">${depthTxt}${truncated?' (capped)':''}</span></div>`;
+  if(kind==='item'){
+    const it=S.byId.get(node.id()), sub=x=>x.mk!==it.mk?modLabel(S.g.mods.get(x.mk)):'';
+    el.innerHTML=`<div class="title">${esc(itemLabel(it))}</div><div class="sub"><span class="chip" data-go="m:${esc(it.mk)}">${esc(modLabel(S.g.mods.get(it.mk)))}</span></div>${counts}
+     <h3>Properties</h3><div class="kv"><div>Format</div><div>${esc(it.format||'—')}</div><div>Applies to</div><div>${esc(isAnon()?(it.lists.map(listLabel).join(', ')||'—'):(it.appliesTo||'—'))}</div><div>Length</div><div>${fmt(it.formula.length)} characters</div></div>
+     <h3>Formula</h3>${it.formula?(isAnon()?'<p class="muted">Hidden while anonymised.</p>':`<pre class="formula">${esc(it.formula)}</pre>`):'<p class="muted">No formula (input or data line item).</p>'}
+     <h3>Direct inputs (${fmt(it.ins.length)})</h3><div class="chips">${chipList(it.ins,x=>chip(x.id,itemLabel(x),'up',sub(x)))||'<span class="muted">None</span>'}</div>
+     <h3>Used by (${fmt(it.outs.length)})</h3><div class="chips">${chipList(it.outs,x=>chip(x.id,itemLabel(x),'dn',sub(x)))||'<span class="muted">Nothing references this line item</span>'}</div>`;
+  } else if(kind==='module'){
+    const m=S.g.mods.get(node.data('ref')); const ups=[...(S.g.modIn.get(m.key)||[])], dns=[...(S.g.modOut.get(m.key)||new Map()).keys()];
+    const items=[...m.items.values()];
+    el.innerHTML=`<div class="title">${esc(modLabel(m))}</div><div class="sub">${fmt(m.size)} line items · ${fmt(items.filter(i=>i.formula).length)} with formulas</div>${counts}
+     <button id="drill" class="primary" style="margin:8px 0 4px">Show this module's line items</button>
+     <h3>Feeds from (${ups.length})</h3><div class="chips">${chipList(ups,k=>chip('m:'+k,modLabel(S.g.mods.get(k)),'up'))||'<span class="muted">None</span>'}</div>
+     <h3>Feeds into (${dns.length})</h3><div class="chips">${chipList(dns,k=>chip('m:'+k,modLabel(S.g.mods.get(k)),'dn'))||'<span class="muted">None</span>'}</div>
+     ${m.lists.size?`<h3>Dimensions</h3><div class="chips">${[...m.lists].map(l=>`<span class="chip">${esc(listLabel(l))}</span>`).join('')}</div>`:''}
+     <h3>Line items</h3>${items.slice(0,300).map(i=>`<div class="row" data-go="${i.id}"><span>${esc(itemLabel(i))}</span><span class="muted">${i.ins.length} in · ${i.outs.length} out</span></div>`).join('')}${items.length>300?`<p class="note">…and ${fmt(items.length-300)} more. Use search to find one.</p>`:''}`;
+    $('drill').onclick=()=>drill(m.key);
+  } else {
+    el.innerHTML=`<div class="title">${esc(node.data('label'))}</div><div class="sub">List (from Applies To)</div>${counts}<p class="note">Shows the modules or line items dimensioned by this list.</p>`;
+  }
+}
+document.addEventListener('click',e=>{
+  const g=e.target.closest('[data-go]'); if(g&&(g.closest('#details')||g.closest('#health')||g.closest('#insights'))){ if(!g.closest('#details')) switchTab('details'); return goTo(g.dataset.go); }
+  const m=e.target.closest('[data-mod]'); if(m) return drill(m.dataset.mod);
+});
+
+/* ---------- Health ---------- */
+function statsHTML(){ const g=S.g; let f=0; for(const i of g.items) if(i.formula) f++; return `<h3>This model</h3><div class="stats"><div class="stat"><b>${fmt(g.mods.size)}</b><span>Modules</span></div><div class="stat"><b>${fmt(g.items.length)}</b><span>Line items</span></div><div class="stat"><b>${fmt(f)}</b><span>Formulas</span></div><div class="stat"><b>${fmt(g.edgeCount)}</b><span>References</span></div></div>`; }
+function topN(arr,n,score){ const out=[]; for(const x of arr){ const s=score(x); if(s<=0) continue; if(out.length<n||s>out[out.length-1][0]){ out.push([s,x]); out.sort((a,b)=>b[0]-a[0]); if(out.length>n) out.pop(); } } return out.map(p=>p[1]); }
+function renderHealth(){
+  const g=S.g, el=$('health');
+  const unused=g.items.filter(i=>i.outs.length===0&&!OUTPUT_PREFIX.test(i.module.trim()));
+  const longest=topN(g.items,8,i=>i.formula.length), hubs=topN(g.items,6,i=>i.outs.length);
+  const islands=[...g.mods.values()].filter(m=>!g.modIn.has(m.key)&&!g.modOut.has(m.key));
+  const row=(it,right)=>`<div class="row" data-go="${it.id}"><span>${esc(itemLabel(it))} <span class="muted">· ${esc(modLabel(g.mods.get(it.mk)))}</span></span><span class="muted">${right}</span></div>`;
+  el.innerHTML=statsHTML()+
+   `<h3>Not referenced downstream (${fmt(unused.length)})</h3><p class="note" style="margin-top:0">Line items outside report modules that no formula uses. They may still be on a page or in an export, so check before deleting.</p>${unused.slice(0,40).map(i=>row(i,i.formula?'has formula':'input')).join('')||'<p class="muted">None</p>'}${unused.length>40?`<p class="note">…and ${fmt(unused.length-40)} more</p>`:''}
+   <h3>Longest formulas</h3>${longest.map(i=>row(i,fmt(i.formula.length)+' chars')).join('')||'<p class="muted">No formulas</p>'}
+   <h3>Most-used line items</h3>${hubs.map(i=>row(i,fmt(i.outs.length)+' uses')).join('')||'<p class="muted">None</p>'}
+   <h3>Modules with no links (${islands.length})</h3>${islands.slice(0,40).map(m=>`<div class="row" data-go="m:${esc(m.key)}"><span>${esc(modLabel(m))}</span><span class="muted">${m.size} items</span></div>`).join('')||'<p class="muted">None</p>'}`;
+}
+
+/* ---------- Insights (rankings) ---------- */
+const IMPACT_POOL=400; /* in big models, downstream impact is measured for the most-used line items */
+function crossModules(it){ const s=new Set(); for(const o of it.outs) if(o.mk!==it.mk) s.add(o.mk); return s.size; }
+function downstreamCount(it){ const seen=new Set([it.id]); const st=[it]; while(st.length){ const n=st.pop(); for(const o of n.outs) if(!seen.has(o.id)){ seen.add(o.id); st.push(o); } } return seen.size-1; }
+function impactScores(){
+  if(S.impact) return S.impact;
+  const pool=S.g.items.length<=3000?S.g.items:topN(S.g.items,IMPACT_POOL,i=>i.outs.length);
+  const m=new Map(); for(const it of pool) m.set(it.id,downstreamCount(it)); return S.impact=m;
+}
+const RANKS=[
+ {key:'refs',label:'Most referenced line items',unit:'uses',help:'How many formulas refer to this line item directly.',items:true,score:i=>i.outs.length},
+ {key:'xmod',label:'Used by the most other modules',unit:'modules',help:'How many different modules read this line item. High numbers mean a change ripples widely.',items:true,score:crossModules},
+ {key:'impact',label:'Biggest downstream impact',unit:'downstream',help:'Everything that would recalculate if this line item changed, across the full chain.',items:true,score:null},
+ {key:'inputs',label:'Most inputs (complex formulas)',unit:'inputs',help:'Line items whose formula reads the most other line items. Good candidates to split or simplify.',items:true,score:i=>i.ins.length},
+ {key:'long',label:'Longest formulas',unit:'chars',help:'Formula length in characters.',items:true,score:i=>i.formula.length},
+ {key:'modUsed',label:'Most depended-on modules',unit:'modules',help:'How many other modules read from this module.',items:false,score:m=>(S.g.modOut.get(m.key)||new Map()).size},
+ {key:'modDeps',label:'Modules with the most dependencies',unit:'modules',help:'How many other modules this module reads from.',items:false,score:m=>(S.g.modIn.get(m.key)||new Set()).size},
+ {key:'modRefs',label:'Modules referenced most',unit:'references',help:'Total references into this module from formulas in other modules.',items:false,score:m=>{let t=0;(S.g.modOut.get(m.key)||new Map()).forEach(w=>t+=w);return t;}}
+];
+function rankRows(r){
+  let rows;
+  if(r.key==='impact'){ const sc=impactScores(); rows=[...sc].map(([id,v])=>[v,S.byId.get(id)]); }
+  else rows=(r.items?S.g.items:[...S.g.mods.values()]).map(x=>[r.score(x),x]);
+  return rows.filter(x=>x[0]>0).sort((a,b)=>b[0]-a[0]);
+}
+function renderInsights(){
+  const el=$('insights'); if(!S.g){ el.innerHTML='<p class="muted">Load a model to see rankings.</p>'; return; }
+  S.insight=S.insight||{key:'refs',shown:50};
+  const r=RANKS.find(x=>x.key===S.insight.key), rows=rankRows(r), max=rows.length?rows[0][0]:1;
+  const pooled=r.key==='impact'&&S.g.items.length>3000;
+  const row=([v,x],i)=>{ const id=r.items?x.id:'m:'+x.key, name=r.items?itemLabel(x):modLabel(x), sub=r.items?modLabel(S.g.mods.get(x.mk)):fmt(x.size)+' line items';
+    return `<div class="rank" data-go="${esc(id)}" title="${esc(name)}"><span class="no">${i+1}</span><span class="nm">${esc(name)}</span><span class="val">${fmt(v)} <span class="muted" style="font-weight:400">${r.unit}</span></span><span class="md">${esc(sub)}</span><span class="bar"><i style="width:${Math.max(2,Math.round(v/max*100))}%"></i></span></div>`; };
+  el.innerHTML=`<div class="ins-head"><select id="insSel">${RANKS.map(x=>`<option value="${x.key}"${x.key===r.key?' selected':''}>${x.label}</option>`).join('')}</select><button id="insCopy" title="Copy this ranking as CSV">Copy CSV</button></div>
+   <p class="note" style="margin:0 0 8px">${r.help}${pooled?` Measured for the ${IMPACT_POOL} most-referenced line items.`:''} Tap a row to trace it.</p>
+   ${rows.slice(0,S.insight.shown).map(row).join('')||'<p class="muted">Nothing to rank.</p>'}
+   ${rows.length>S.insight.shown?`<button id="insMore" style="margin-top:10px;width:100%">Show more (${fmt(rows.length-S.insight.shown)} left)</button>`:''}`;
+  $('insSel').onchange=e=>{ S.insight={key:e.target.value,shown:50}; if(e.target.value==='impact'&&!S.impact){ el.insertAdjacentHTML('beforeend','<p class="muted">Measuring downstream impact…</p>'); setTimeout(renderInsights,30); } else renderInsights(); };
+  if($('insMore')) $('insMore').onclick=()=>{ S.insight.shown+=50; renderInsights(); };
+  $('insCopy').onclick=async()=>{
+    const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
+    const lines=[r.items?'Rank,Line item,Module,'+r.unit:'Rank,Module,Line items,'+r.unit].concat(rows.slice(0,5000).map(([v,x],i)=>r.items?[i+1,q(itemLabel(x)),q(modLabel(S.g.mods.get(x.mk))),v].join(','):[i+1,q(modLabel(x)),x.size,v].join(',')));
+    try{ await navigator.clipboard.writeText(lines.join('\n')); $('insCopy').textContent='Copied'; }catch(e){ $('insCopy').textContent="Couldn't copy"; }
+    setTimeout(()=>{ if($('insCopy')) $('insCopy').textContent='Copy CSV'; },1500);
+  };
+}
+
+/* ---------- Search ---------- */
+function buildSearch(){
+  const idx=[]; S.g.mods.forEach(m=>{const l=modLabel(m);idx.push({id:'m:'+m.key,label:l,low:l.toLowerCase(),sub:'Module'});});
+  for(const it of S.g.items){const l=itemLabel(it);idx.push({id:it.id,label:l,low:l.toLowerCase(),sub:modLabel(S.g.mods.get(it.mk))});}
+  S.search=idx;
+}
+let sTimer=0,sRes=[],sOn=0;
+function runSearch(){
+  const q=$('search').value.trim().toLowerCase(), box=$('results');
+  if(!q||!S.g){box.style.display='none';return;}
+  const starts=[],has=[];
+  for(const x of S.search){ if(x.low.startsWith(q)){ if(starts.length<40) starts.push(x); } else if(has.length<40&&x.low.includes(q)) has.push(x); if(starts.length>=40) break; }
+  sRes=starts.concat(has).slice(0,40); sOn=0;
+  box.innerHTML=sRes.length?sRes.map((x,i)=>`<div data-i="${i}" class="${i===0?'on':''}">${esc(x.label)}<small>${esc(x.sub)}</small></div>`).join(''):'<div class="muted">No matches</div>';
+  box.style.display='block';
+}
+$('search').addEventListener('input',()=>{clearTimeout(sTimer);sTimer=setTimeout(runSearch,120);});
+$('search').addEventListener('keydown',e=>{
+  const box=$('results'); if(box.style.display!=='block') return;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); sOn=Math.max(0,Math.min(sRes.length-1,sOn+(e.key==='ArrowDown'?1:-1))); box.querySelectorAll('[data-i]').forEach(d=>d.classList.toggle('on',+d.dataset.i===sOn)); }
+  else if(e.key==='Enter'&&sRes[sOn]){ e.preventDefault(); pick(sRes[sOn]); }
+  else if(e.key==='Escape') box.style.display='none';
+});
+$('results').addEventListener('mousedown',e=>{ const d=e.target.closest('[data-i]'); if(d){ e.preventDefault(); pick(sRes[+d.dataset.i]); } });
+$('search').addEventListener('blur',()=>setTimeout(()=>$('results').style.display='none',150));
+function pick(x){ $('results').style.display='none'; $('search').value=x.label; $('search').blur(); switchTab('details'); goTo(x.id); }
+
+/* ---------- Controls ---------- */
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{ if(!S.g) return; S.mode=b.dataset.v; S.moduleFilter=null; S.focus=null; S.sel=null; S.history=[]; setSeg('modeSeg',S.mode); render(); showDetails(null); });
+document.querySelectorAll('#layoutSeg button').forEach(b=>b.onclick=()=>{ S.layout=b.dataset.v; setSeg('layoutSeg',S.layout); if(S.g&&cy) runLayout(); });
+$('depth').onchange=()=>{ if(!S.g) return; if(S.mode==='line'&&S.focus) render(); else if(S.sel){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
+$('isolate').onchange=()=>{ if(S.sel&&!S.focus){ const n=cy.getElementById(S.sel); if(n.length) selectInPlace(n,false); } };
+['heat','lists'].forEach(id=>$(id).onchange=()=>{ if(S.g) render(); });
+$('anon').onchange=()=>{ if(!S.g) return; buildSearch(); render(); renderHealth(); renderInsights(); if(!S.sel&&!S.focus) showDetails(null); };
+$('bannerClose').onclick=()=>{ S.focus=null; S.moduleFilter=null; S.sel=null; S.history=[]; render(); showDetails(null); };
+$('bannerBack').onclick=()=>{ const h=S.history.pop(); if(!h) return; S.focus=h.focus; S.moduleFilter=h.moduleFilter; S.sel=h.focus?h.focus.id:null; render(); if(!S.focus) showDetails(null); };
+$('zin').onclick=()=>cy&&cy.animate({zoom:{level:cy.zoom()*1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
+$('zout').onclick=()=>cy&&cy.animate({zoom:{level:cy.zoom()/1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
+$('zfit').onclick=()=>cy&&cy.animate({fit:{eles:cy.elements().not('.hidden'),padding:40}},{duration:300});
+$('pngBtn').onclick=()=>{ if(!S.g||!cy||!cy.nodes().length) return; $('pngImg').src=cy.png({full:true,scale:cy.nodes().length>800?1:2,bg:'#0d1220',maxWidth:4000,maxHeight:4000}); $('modal').style.display='flex'; };
+$('modalClose').onclick=()=>$('modal').style.display='none';
+$('modal').onclick=e=>{ if(e.target.id==='modal') $('modal').style.display='none'; };
+function switchTab(t){ document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t)); ['details','insights','health'].forEach(id=>$(id).style.display=t===id?'block':'none'); }
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>switchTab(b.dataset.t));
+</script>
+</body>
+</html>
