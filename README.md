@@ -1,6 +1,6 @@
 # Anaplan Lineage Explorer
 
-An interactive, browser-only map of how data flows through an Anaplan model. Load a line item blueprint export, and the explorer traces every formula reference so you can see what feeds a line item and what it feeds.
+An interactive, browser-only lineage map for Anaplan models, built the way a solution architect reads a model: start from a bird's-eye view, drill into a layer or section, then a module, then a line item, and trace its lineage all the way to the sources and outputs.
 
 **Open the app:** use the GitHub Pages link shown in this repository's About section.
 
@@ -8,43 +8,53 @@ An interactive, browser-only map of how data flows through an Anaplan model. Loa
 
 - The whole app is a single `index.html` file. All parsing and drawing happen in your browser.
 - Nothing is uploaded. The page's Content Security Policy sets `connect-src 'none'`, which blocks the page from sending network requests.
-- The only things loaded from the internet are open-source libraries (Cytoscape.js, dagre and fcose from jsDelivr). Your file is never sent anywhere.
+- The only thing loaded from the internet is the open-source Cytoscape.js library (from jsDelivr). Your file is never sent anywhere.
 - You don't need an Anaplan login or API access.
-- You can check all of this yourself: the code is in [`index.html`](index.html), and your browser's Network tab will show no requests carrying your data.
 
-## Features
+## Four levels: drill down and up
 
-- **Module and line item views.** Lineage is traced across modules and within a module.
-- **Tracing.** Tap any node to see what feeds it (amber) and what it feeds (green), across the full chain or 1–3 steps.
-- **Insights.** Rankings for the most referenced line items, line items used by the most modules, biggest downstream impact, most inputs, longest formulas, and the most depended-on modules. Each ranking can be copied as CSV.
-- **Model health.** Line items nothing references, the longest formulas, the most-used line items, and modules with no links.
-- **Search** across every module and line item.
-- **Heat map, list nodes and an anonymise mode,** so you can share structure without names or formulas.
-- **Built for big models.** It has been tested with 60,000 line items. Large models open in the module view, and line items are shown one module or one lineage chain at a time.
-- **Export** the graph as an image.
+| Level | What you see |
+|---|---|
+| 1. Model | DISCO lanes (Data, Input and System → Calculation → Output) or your model sections. Each lane shows its most-connected modules, and arrows show reference volume between lanes. Flows against DISCO are shown in red. Use **Show all modules** for the full grid. |
+| 2. Layer or section | Every module in the lane, with the modules that feed it on the left and the modules it feeds on the right. |
+| 3. Module | The module as an Anaplan-style **blueprint grid**: Line Items, Format, Formula, Summary, Time Scale, Versions, Applies To, Cell Count, Inputs and Used By, in blueprint order with Parent indentation and heading styles. The modules that feed it sit on the left and the modules that use it on the right, wired to the exact rows. |
+| 4. Line item lineage | Columns of mini blueprints: inputs on the left and items that use it on the right, grouped by module, with row-to-row links. Expand with **+N**, **◀ +1 / +1 ▶**, or go all the way with **To source** and **To output**. |
 
-## How to export your blueprint from Anaplan
+A breadcrumb (Model › Layer › Module › Line item) and **▲ Up** (or Backspace) move you between levels. **Module lineage** shows the module-to-module chain.
 
-1. In your model, open **Modules** and go to the **Line Items** tab. To export just one module, open that module's **Blueprint** view instead.
-2. Select all rows.
-3. Choose **Export** and pick **CSV**.
-4. Keep at least these columns: **Module**, **Line Item**, **Formula**. **Format** and **Applies To** are optional but give extra detail.
-5. Drag the CSV onto the app, or click **Load CSV export**. You can load several files at once.
+## Look and feel
 
-Tab-separated files and single-module exports with no Module column also work. In that case the file name is used as the module name.
+The app uses a light theme close to Anaplan's own interface by default, with a navy top bar and blueprint-style grids. Use the **Dark mode** button in the top bar to switch. Your choice is remembered in this browser.
 
-## How formula references are found
+## Anaplan metadata
 
-Formulas are split on operators outside quotes, and each piece is matched against the model's module and line item names. Both `Module.Line Item` and `'Module'.'Line Item'` are recognised, as are plain line item names from the same module. Text inside double quotes is ignored.
+- **Every card shows** format, summary method and time scale. The side panel lists all properties: format details, summary and time summary, time scale and range, versions, Applies To, cell count, calculation effort, parent, style, code, data tags and access drivers (DCA).
+- **Colour by** format, summary method, time scale, versions, calculation effort, cell count or formula length. Click a legend entry to show only that value.
+- **Model profile** gives breakdowns plus architect checks:
+  - flows against DISCO
+  - non-numeric line items with a summary method
+  - Boolean summaries and Formula summaries
+  - the highest calculation effort and largest cell counts
+  - unreferenced line items, very long formulas and empty modules
+- **Rankings** list the most referenced line items, cross-module use, downstream impact, calculation effort, cell count and more, and copy as CSV.
 
-Known limits:
-- References to list properties (for example `Employee.Salary Band`) and saved views are not drawn yet.
-- Line items that are used only on pages or in exports, and not in formulas, show as "not referenced". Check before deleting anything.
+## Grouping
 
-## Run it locally or offline
+- **DISCO layer** is inferred from module name prefixes: SYS/MAP → System, DAT/STG/IMP → Data, INP → Input, CAL → Calculation, OUT/REP/EXP/DSH → Output.
+- **Model sections** come from divider modules such as `--- REPORTING ---`. Your export needs the module rows for these (the full Line Items export includes them).
 
-Download `index.html` and open it in Chrome, Edge, Safari or Firefox. It needs internet access the first time so it can load the libraries.
+## How to export from Anaplan
+
+1. In your model, open **Modules** and go to the **Line Items** tab.
+2. Select all rows and choose **Export** → **CSV**, including all columns.
+3. Drag the CSV onto the app, or click **Load CSV export**.
+
+**Lineage source.** When the export includes the **Referenced By** column, the app uses Anaplan's own references, plus links from dynamic cell access drivers. Without it, the app reads the formulas instead. Formula reading matched about 97% of Anaplan's references on a real model; the rest come from cases such as COLLECT().
+
+## Run it locally
+
+Download `index.html` and open it in Chrome, Edge, Safari or Firefox. It needs internet access the first time so it can load Cytoscape.js.
 
 ## Feedback
 
-Please open an issue with any problems or ideas. If your export doesn't parse, include its header row. Sample data is fine; please don't include real model data.
+Please open an issue with any problems or ideas. Please don't attach real model data; a header row or a small made-up example is enough.
