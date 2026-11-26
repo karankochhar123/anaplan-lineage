@@ -335,7 +335,7 @@ function rowsToItems(rows,fileName){
       p:{fmtType:f.type,fmt:f.label,sum:s.method,tsum:s.time,ts:g(r,'ts'),tr:g(r,'tr'),ver:g(r,'ver'),style:g(r,'style'),cells:num(g(r,'cells')),effort:num(g(r,'effort')),
          notes:g(r,'notes'),rd:g(r,'rd'),wr:g(r,'wr'),parent:g(r,'parent'),isSum:g(r,'isSum'),scope:g(r,'scope'),code:g(r,'code'),tags:g(r,'tags'),rb:g(r,'rb')}});
   }
-  return {items,modules,hasRB:ci.rb>=0};
+  return {items,modules,hasRB:ci.rb>=0&&items.some(it=>it.p.rb&&it.p.rb!=='-')};
 }
 
 function splitList(s){return String(s||'').split(/[,;]/).map(x=>x.trim()).filter(x=>x&&!/^(time|versions?|none|\(none\)|-)$/i.test(x));}
@@ -423,18 +423,22 @@ function dcaRefs(items,mods,existing){
     for(const drv of [it.p.rd,it.p.wr]){ if(!drv||drv==='-') continue; const t=lookup(drv,own,mods); if(!t||t===it) continue; const k=t.idx*1048576+it.idx; if(seen.has(k)) continue; seen.add(k); edges.push([t.idx,it.idx,1]); } }
   return edges;
 }
-function buildRefs(items,mods,hasRB,onProgress){
-  const useRB=hasRB&&items.some(it=>it.p&&it.p.rb&&it.p.rb!=='-');
+function buildRefs(items,mods,onProgress){
+  const useRB=items.some(it=>it.rbFile);
   const base=useRB?refsFromRB(items,mods):findRefs(items,mods,onProgress);
   return {edges:base.concat(dcaRefs(items,mods,base)),source:useRB?'rb':'formula'};
 }
 
-/* convenience for tests */
-function buildGraph(items,modules,hasRB){
-  const mods=indexItems(items,modules); const {edges,source}=buildRefs(items,mods,hasRB);
-  for(const it of items){it.ins=[];it.outs=[];}
-  for(const [s,t] of edges){items[t].ins.push(items[s]);items[s].outs.push(items[t]);}
-  return {items,mods,edges:edges.map(([s,t,k])=>({source:items[s],target:items[t],kind:k})),source};
+/* Entry point (worker, main-thread fallback and tests): CSV texts → line items, modules and lineage edges */
+function parseFiles(files,onProgress){
+  const say=onProgress||(()=>{}), items=[], modules=[];
+  for(const f of files){ say('Reading '+f.name); const r=rowsToItems(parseCSV(f.text),f.name);
+    for(const x of r.items){ x.rbFile=r.hasRB; items.push(x); } for(const m of r.modules) modules.push(m); }
+  if(!items.length) throw new Error('No line items found in the file.');
+  say('Tracing lineage across '+items.length.toLocaleString()+' line items');
+  const mods=indexItems(items,modules);
+  const res=buildRefs(items,mods,i=>say('Reading formulas: '+Math.round(i/items.length*100)+'%'));
+  return {items,modules,mods,edges:res.edges,source:res.source};
 }
 
 </script>
@@ -549,13 +553,8 @@ const SAMPLE_CSV=SAMPLE_ROWS.map(r=>r.map(c=>/[",\n]/.test(c)?'"'+c.replace(/"/g
 function workerSource(){
   return $('core').textContent+`
   self.onmessage=e=>{ try{
-    let items=[],modules=[],hasRB=false;
-    for(const f of e.data.files){ postMessage({type:'progress',msg:'Reading '+f.name}); const r=rowsToItems(parseCSV(f.text),f.name); for(const x of r.items) items.push(x); for(const m of r.modules) modules.push(m); hasRB=hasRB||r.hasRB; }
-    if(!items.length) throw new Error('No line items found in the file.');
-    postMessage({type:'progress',msg:'Tracing lineage across '+items.length.toLocaleString()+' line items'});
-    const mods=indexItems(items,modules);
-    const res=buildRefs(items,mods,hasRB,i=>postMessage({type:'progress',msg:'Reading formulas: '+Math.round(i/items.length*100)+'%'}));
-    postMessage({type:'done',items:items.map(x=>({module:x.module,name:x.name,formula:x.formula,appliesTo:x.appliesTo,p:x.p})),modules,edges:res.edges,source:res.source});
+    const r=parseFiles(e.data.files,msg=>postMessage({type:'progress',msg}));
+    postMessage({type:'done',items:r.items.map(x=>({module:x.module,name:x.name,formula:x.formula,appliesTo:x.appliesTo,p:x.p})),modules:r.modules,edges:r.edges,source:r.source});
   }catch(err){ postMessage({type:'error',msg:err.message}); } };`;
 }
 function parseInWorker(files){
@@ -567,11 +566,8 @@ function parseInWorker(files){
   });
 }
 async function parseOnMain(files){
-  let items=[],modules=[],hasRB=false;
-  for(const f of files){ busy(true,'Reading '+f.name); await nextFrame(); const r=rowsToItems(parseCSV(f.text),f.name); for(const x of r.items) items.push(x); for(const m of r.modules) modules.push(m); hasRB=hasRB||r.hasRB; }
-  if(!items.length) throw new Error('No line items found in the file.');
   busy(true,'Tracing lineage'); await nextFrame();
-  const mods=indexItems(items,modules); const res=buildRefs(items,mods,hasRB); return {items,modules,edges:res.edges,source:res.source};
+  return parseFiles(files);
 }
 async function loadText(files){
   busy(true,'Reading file'); $('err').textContent='';

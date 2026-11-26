@@ -55,6 +55,16 @@ The app uses a light theme close to Anaplan's own interface by default, with a n
 
 Download `index.html` and open it in Chrome, Edge, Safari or Firefox. It needs internet access the first time so it can load Cytoscape.js.
 
+## Tests
+
+The parsing code is tested with Node's built-in test runner (Node 22 or later, no packages to install):
+
+```
+npm test
+```
+
+The tests read the code straight out of `index.html`, so there is nothing to build. They run on every push and pull request through GitHub Actions. All test data is made up.
+
 ## Feedback
 
 Please open an issue with any problems or ideas. Please don't attach real model data; a header row or a small made-up example is enough.
