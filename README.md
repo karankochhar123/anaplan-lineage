@@ -2,13 +2,13 @@
 
 An interactive, browser-only lineage map for Anaplan models, built the way a solution architect reads a model: start from a bird's-eye view, drill into a layer or section, then a module, then a line item, and trace its lineage all the way to the sources and outputs.
 
-**Open the app:** use the GitHub Pages link shown in this repository's About section.
+**Open the app:** https://karankochhar123.github.io/anaplan-lineage/
 
 ## Your data stays on your device
 
 - The whole app is a single `index.html` file. All parsing and drawing happen in your browser.
-- Nothing is uploaded. The page's Content Security Policy sets `connect-src 'none'`, which blocks the page from sending network requests.
-- The only thing loaded from the internet is the open-source Cytoscape.js library (from jsDelivr). Your file is never sent anywhere.
+- Nothing is uploaded. The page's Content Security Policy sets `connect-src 'none'`, which blocks the page's scripts from making network requests (fetch, XHR, WebSocket).
+- The only thing loaded from the internet is the open-source Cytoscape.js library (pinned version, from jsDelivr). It has a Subresource Integrity hash, so the browser refuses to run it if the file on the CDN has been changed. Your file is never sent anywhere.
 - You don't need an Anaplan login or API access.
 
 ## Four levels: drill down and up
