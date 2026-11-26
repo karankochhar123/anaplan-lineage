@@ -633,12 +633,30 @@ function anon(){ if(S.anonMap) return S.anonMap; const m=new Map(); let mi=0;
   S.g.modList.forEach(mod=>{ mi++; m.set('m:'+mod.key,mod.layer.slice(0,3).toUpperCase()+String(mi).padStart(3,'0')); let li=0; mod.items.forEach(it=>{li++; m.set(it.id,'Line item '+mi+'.'+li);}); });
   S.g.items.forEach(it=>{ if(!m.has(it.id)) m.set(it.id,'Line item '+it.idx); });
   S.g.sections.forEach((s,i)=>m.set('s:'+s.key,'Section '+(i+1)));
+  /* user-defined names inside properties, numbered in model order so a list keeps the same alias everywhere */
+  const seed=(kind,v)=>{ for(const x of splitNames(v)) if(!STD_NAME.test(x)) aliasIn(m,kind,x); };
+  S.g.modList.forEach(mod=>{ const md=mod.meta||{}; seed('l',md.appliesTo); seed('v',md.ver); seed('t',md.tr);
+    mod.items.forEach(it=>{ const p=it.p||{}; seed('l',it.appliesTo); seed('l',fmtList(p.fmt)); seed('v',p.ver); seed('v',p.scope); seed('t',p.tr); }); });
   return S.anonMap=m; }
+/* ---------- Anonymise: every user-defined name shown on screen goes through one of these ---------- */
+const STD_NAME=/^(-|all|not applicable|none|\(none\)|time|versions?|all versions|actual version|current version)$/i;
+const ALIAS_PREFIX={l:'List',v:'Version',t:'Time range'};
+const splitNames=v=>String(v||'').split(/[,;]/).map(x=>x.trim()).filter(Boolean);
+const fmtList=f=>{ const x=String(f||'').match(/^(?:list|entity)\s*:\s*(.+)$/i); return x?x[1].trim():''; };
+function aliasIn(m,kind,name){ const k=kind+':'+norm(name); if(!m.has(k)){ const n=(m.get('#'+kind)||0)+1; m.set('#'+kind,n); m.set(k,ALIAS_PREFIX[kind]+' '+n); } return m.get(k); }
+/* a comma-separated property of lists, versions or time ranges */
+function showNames(v,kind){ v=String(v||''); if(!isAnon()||!v) return v; return splitNames(v).map(x=>STD_NAME.test(x)?x:aliasIn(anon(),kind,x)).join(', '); }
+const showLists=v=>showNames(v,'l');
+function showFmt(f){ f=String(f||''); const l=fmtList(f); return isAnon()&&l?'List: '+aliasIn(anon(),'l',l):f; }
+/* a reference to a line item (Parent, access drivers) */
+function showRef(ref,own){ if(!isAnon()||!ref||ref==='-') return ref; const it=lookup(ref,own,S.g.mods); if(!it) return '•••'; return own&&it.mk===own.key?itemLabel(it):modLabel(mod(it.mk))+'.'+itemLabel(it); }
+const showHidden=v=>isAnon()&&v&&v!=='-'?'•••':v;
 const modLabel=m=>isAnon()?anon().get('m:'+m.key):m.name;
 const itemLabel=it=>isAnon()?anon().get(it.id):it.name;
 const mod=k=>S.g.mods.get(k);
 function laneOf(m){ return S.groupBy==='section'?m.section:m.layer; }
-function laneName(l){ return S.groupBy==='section'&&isAnon()?(anon().get('s:'+l)||l):l; }
+const sectionName=sec=>isAnon()?(anon().get('s:'+sec)||'Section'):sec;
+function laneName(l){ return S.groupBy==='section'?sectionName(l):l; }
 function lanes(){ return S.groupBy==='section'?S.g.sections.map(s=>s.key):LAYERS.filter(l=>S.g.modList.some(m=>m.layer===l)); }
 function laneColor(l){ return S.groupBy==='section'?SECTION_COLORS[Math.max(0,lanes().indexOf(l))%SECTION_COLORS.length]:LAYER_COLOR[l]; }
 const laneMods=l=>S.g.modList.filter(m=>laneOf(m)===l);
@@ -803,7 +821,7 @@ let SZ=1;
 function showSheet(on){ $('sheet').style.display=on?'block':'none'; $('cy').style.display=on?'none':'block'; if(on&&cy){ cy.destroy(); cy=null; } }
 function apFmt(p){ const t=p.fmtType, l=p.fmt||''; if(!t) return '';
   if(t==='Time period'){ const m=l.match(/\(([^)]+)\)/); return 'Time Period'+(m?': '+m[1]:''); }
-  if(t==='No data') return 'No Data'; if(t==='List') return /^list\s*:/i.test(l)?l:'List'; if(t==='Number') return l.replace(/ · .*$/,'')||'Number'; return t; }
+  if(t==='No data') return 'No Data'; if(t==='List') return /^list\s*:/i.test(l)?showFmt(l):'List'; if(t==='Number') return l.replace(/ · .*$/,'')||'Number'; return t; }
 function parentDepth(it,m){ let d=0,cur=it; while(cur.p&&cur.p.parent&&d<4){ const par=m.items.get(norm(cur.p.parent)); if(!par||par===cur) break; d++; cur=par; } return d; }
 function rowClass(it){ const st=(it.p&&it.p.style)||''; let c=/^heading/i.test(st)?'hd':(/^summary/i.test(st)||(it.p&&it.p.isSum==='true'))?'sm':'';
   if(S.hl&&S.hlFilter&&!isHeat(S.hl)&&catOf(it,S.hl)!==S.hlFilter) c+=' dimrow'; return c; }
@@ -826,15 +844,15 @@ function renderModuleSheet(mk){
   const sideHTML=(list,dir)=>list.map(([k,links])=>{ const mm=mod(k); let n=0; links.forEach(c=>n+=c);
     return `<div class="sh-card" data-mod="${esc(k)}" data-dir="${dir}" style="--c:${modColor(mm)}"><b title="${esc(modLabel(mm))}">${esc(modLabel(mm))}</b><span>${mm.layer} · ${fmt(n)} link${n===1?'':'s'}</span></div>`; }).join('');
   const showCells=items.some(i=>i.p.cells), meta=S.g.hasMeta;
-  const appliesMod=md.appliesTo&&md.appliesTo!=='-'?md.appliesTo:'';
+  const appliesMod=md.appliesTo&&md.appliesTo!=='-'?showLists(md.appliesTo):'';
   const rows=items.map(it=>{ const p=it.p||{}, d=parentDepth(it,m);
     let ei=0,eo=0; it.ins.forEach(x=>{ if(x.mk!==mk) ei++; }); it.outs.forEach(o=>{ if(o.mk!==mk) eo++; });
-    const ap=it.appliesTo&&it.appliesTo!=='-'?esc(it.appliesTo):(appliesMod?`<span style="color:#94a3b8">${esc(appliesMod)}</span>`:'');
+    const ap=it.appliesTo&&it.appliesTo!=='-'?esc(showLists(it.appliesTo)):(appliesMod?`<span style="color:#94a3b8">${esc(appliesMod)}</span>`:'');
     return `<tr data-id="${it.id}" class="${rowClass(it)}"><td class="li" style="padding-left:${10+d*16}px" title="${esc(itemLabel(it))}">${hlDot(it)}${esc(itemLabel(it))}</td>`+
       (meta?`<td>${esc(apFmt(p))}</td>`:'')+`<td class="f" title="${isAnon()?'':esc(it.formula)}">${isAnon()?(it.formula?'•••':''):esc(it.formula)}</td>`+
-      (meta?`<td>${esc(p.sum||'')}</td><td>${esc(p.ts||'')}</td><td>${esc(p.ver||'')}</td><td>${ap}</td>`:'')+(showCells?`<td class="n">${p.cells?fmt(p.cells):''}</td>`:'')+
+      (meta?`<td>${esc(p.sum||'')}</td><td>${esc(p.ts||'')}</td><td>${esc(showNames(p.ver,'v'))}</td><td>${ap}</td>`:'')+(showCells?`<td class="n">${p.cells?fmt(p.cells):''}</td>`:'')+
       `<td class="n">${it.ins.length}${ei?` <span class="ext u" title="${ei} from other modules">${ei}↗</span>`:''}</td><td class="n">${it.outs.length}${eo?` <span class="ext d" title="${eo} in other modules">${eo}↗</span>`:''}</td></tr>`; }).join('');
-  const head=`<div class="sh-head" data-head="${esc(mk)}"><i style="background:${modColor(m)}"></i><span class="nm">${esc(modLabel(m))}</span><small>${m.layer}${m.section&&S.g.hasSections?' · '+esc(laneName(m.section)):''} · ${fmt(m.size)} line items${appliesMod?' · '+esc(appliesMod):''}${md.ts&&md.ts!=='Not Applicable'?' · '+esc(md.ts):''}${modCells(m)?' · '+short(modCells(m))+' cells':''}</small></div>`;
+  const head=`<div class="sh-head" data-head="${esc(mk)}"><i style="background:${modColor(m)}"></i><span class="nm">${esc(modLabel(m))}</span><small>${m.layer}${m.section&&S.g.hasSections?' · '+esc(sectionName(m.section)):''} · ${fmt(m.size)} line items${appliesMod?' · '+esc(appliesMod):''}${md.ts&&md.ts!=='Not Applicable'?' · '+esc(md.ts):''}${modCells(m)?' · '+short(modCells(m))+' cells':''}</small></div>`;
   const th=`<tr><th>Line Items</th>${meta?'<th>Format</th>':''}<th>Formula</th>${meta?'<th>Summary</th><th>Time Scale</th><th>Versions</th><th>Applies To</th>':''}${showCells?'<th>Cell Count</th>':''}<th>Inputs</th><th>Used By</th></tr>`;
   $('sheet').innerHTML=`<div class="sh-wrap" style="zoom:${SZ}"><div class="sh-row">
      <div class="sh-side" id="shL"><h4>Feeds this module (${F.size})</h4>${sideHTML(Fl,-1)}</div>
@@ -994,9 +1012,9 @@ function showTip(n,p){
   const t=$('tip'), k=n.data('kind'); let html='';
   if(k==='exp'){ const mo=isMod(n.data('of')); html=`Show ${n.data('label').slice(1)} more ${n.data('dir')<0?(mo?'modules that feed it':'inputs'):(mo?'modules it feeds':'items that use it')}`; }
   else if(k==='mod'||(k==='card'&&isMod(n.id()))){ const m=mod(n.data('ref')); if(!m) return;
-    html=`<b>${esc(modLabel(m))}</b><span class="muted">${m.layer}${m.section&&S.g.hasSections?' · '+esc(laneName(m.section)):''}</span><div class="kv"><div>Line items</div><div>${fmt(m.size)}</div><div>Cells</div><div>${fmt(modCells(m))}</div><div>Feeds from</div><div>${(S.g.modIn.get(m.key)||new Set()).size} modules</div><div>Feeds into</div><div>${(S.g.modOut.get(m.key)||new Map()).size} modules</div></div><div class="note">Click to open</div>`; }
+    html=`<b>${esc(modLabel(m))}</b><span class="muted">${m.layer}${m.section&&S.g.hasSections?' · '+esc(sectionName(m.section)):''}</span><div class="kv"><div>Line items</div><div>${fmt(m.size)}</div><div>Cells</div><div>${fmt(modCells(m))}</div><div>Feeds from</div><div>${(S.g.modIn.get(m.key)||new Set()).size} modules</div><div>Feeds into</div><div>${(S.g.modOut.get(m.key)||new Map()).size} modules</div></div><div class="note">Click to open</div>`; }
   else if(k==='card'){ const it=S.byId.get(n.id()); if(!it) return; const p=it.p||{};
-    html=`<b>${esc(itemLabel(it))}</b><span class="muted">${esc(modLabel(mod(it.mk)))} · ${it.ins.length} in · ${it.outs.length} out</span>${S.g.hasMeta?`<div class="kv"><div>Format</div><div>${esc(p.fmt||'—')}</div><div>Summary</div><div>${esc(p.sum||'—')}${p.tsum&&p.tsum!==p.sum?' (time: '+esc(p.tsum)+')':''}</div><div>Time scale</div><div>${esc(p.ts||'—')}</div>${p.cells?`<div>Cells</div><div>${fmt(p.cells)}</div>`:''}${p.effort?`<div>Calc effort</div><div>${p.effort}%</div>`:''}</div>`:''}${it.formula&&!isAnon()?`<code>${esc(trunc(it.formula,300))}</code>`:''}`; }
+    html=`<b>${esc(itemLabel(it))}</b><span class="muted">${esc(modLabel(mod(it.mk)))} · ${it.ins.length} in · ${it.outs.length} out</span>${S.g.hasMeta?`<div class="kv"><div>Format</div><div>${esc(showFmt(p.fmt)||'—')}</div><div>Summary</div><div>${esc(p.sum||'—')}${p.tsum&&p.tsum!==p.sum?' (time: '+esc(p.tsum)+')':''}</div><div>Time scale</div><div>${esc(p.ts||'—')}</div>${p.cells?`<div>Cells</div><div>${fmt(p.cells)}</div>`:''}${p.effort?`<div>Calc effort</div><div>${p.effort}%</div>`:''}</div>`:''}${it.formula&&!isAnon()?`<code>${esc(trunc(it.formula,300))}</code>`:''}`; }
   else return;
   t.innerHTML=html; t.style.display='block';
   const W=$('canvas').clientWidth, H=$('canvas').clientHeight; let x=p.x+14, y=p.y+14;
@@ -1063,9 +1081,9 @@ function moduleDetails(m){
   const el=$('details'), items=[...m.items.values()], md=m.meta||{};
   const ups=[...(S.g.modIn.get(m.key)||[])].map(k=>[k,S.g.modOut.get(k).get(m.key)||0]), dns=[...(S.g.modOut.get(m.key)||new Map())];
   const full=S.nav.level==='chain'?linFull():null;
-  el.innerHTML=`<div class="title">${esc(modLabel(m))}</div><div class="sub"><span class="badge" style="border-color:${modColor(m)}">${m.layer}</span>${m.section&&S.g.hasSections?`<span class="badge">${esc(laneName(m.section))}</span>`:''}</div>
+  el.innerHTML=`<div class="title">${esc(modLabel(m))}</div><div class="sub"><span class="badge" style="border-color:${modColor(m)}">${m.layer}</span>${m.section&&S.g.hasSections?`<span class="badge">${esc(sectionName(m.section))}</span>`:''}</div>
    ${full?`<div class="counts"><span class="u"><b>${fmt(full.up)}</b> modules upstream</span><span class="d"><b>${fmt(full.dn)}</b> downstream</span></div>`:''}
-   <div class="kv"><div>Line items</div><div>${fmt(m.size)} (${fmt(items.filter(i=>i.formula).length)} with formulas)</div>${md.appliesTo&&md.appliesTo!=='-'?`<div>Applies to</div><div>${esc(md.appliesTo)}</div>`:m.lists.size?`<div>Dimensions</div><div>${esc([...m.lists].join(', '))}</div>`:''}${md.ts?`<div>Time scale</div><div>${esc(md.ts)}${md.tr&&md.tr!=='Not Applicable'?' · '+esc(md.tr):''}</div>`:''}${md.ver?`<div>Versions</div><div>${esc(md.ver)}</div>`:''}${modCells(m)?`<div>Cell count</div><div>${fmt(modCells(m))}</div>`:''}</div>
+   <div class="kv"><div>Line items</div><div>${fmt(m.size)} (${fmt(items.filter(i=>i.formula).length)} with formulas)</div>${md.appliesTo&&md.appliesTo!=='-'?`<div>Applies to</div><div>${esc(showLists(md.appliesTo))}</div>`:m.lists.size?`<div>Dimensions</div><div>${esc(showLists([...m.lists].join(', ')))}</div>`:''}${md.ts?`<div>Time scale</div><div>${esc(md.ts)}${md.tr&&md.tr!=='Not Applicable'?' · '+esc(showNames(md.tr,'t')):''}</div>`:''}${md.ver?`<div>Versions</div><div>${esc(showNames(md.ver,'v'))}</div>`:''}${modCells(m)?`<div>Cell count</div><div>${fmt(modCells(m))}</div>`:''}</div>
    ${S.nav.level!=='chain'?`<button class="primary" id="openChain" style="margin:2px 0 6px">Module-to-module lineage</button>`:''}
    ${S.g.hasMeta?`<h3>Line items by format</h3>${bars(countBy(items,i=>i.p.fmtType||'Unknown'),items.length,CAT_COLORS.fmt,'fmt')}<h3>Summary methods</h3>${bars(countBy(items,i=>i.p.sum||'Unknown'),items.length,CAT_COLORS.sum,'sum')}`:''}
    <h3>Feeds from (${ups.length})</h3>${modRows(ups,'Sorted by references')}
@@ -1078,7 +1096,7 @@ function itemDetails(it){
   const prop=(k,v)=>v&&v!=='-'?`<div>${k}</div><div>${esc(v)}</div>`:'';
   el.innerHTML=`<div class="title">${esc(itemLabel(it))}</div><div class="sub"><span class="chip link" data-go="m:${esc(it.mk)}">${esc(modLabel(m))}</span><span class="badge" style="border-color:${modColor(m)}">${m.layer}</span></div>
    <div class="counts"><span class="u"><b>${fmt(f.up)}</b> upstream</span><span class="d"><b>${fmt(f.dn)}</b> downstream</span><span class="muted">full chain</span></div>
-   ${S.g.hasMeta?`<div class="kv" style="margin-top:8px">${prop('Format',p.fmt)}${prop('Summary',p.sum+(p.tsum&&p.tsum!==p.sum?' (time: '+p.tsum+')':''))}${prop('Time scale',p.ts)}${prop('Time range',p.tr)}${prop('Versions',p.ver)}${prop('Applies to',it.appliesTo&&it.appliesTo!=='-'?it.appliesTo:(m.meta.appliesTo?m.meta.appliesTo+' (module)':''))}${p.cells?`<div>Cell count</div><div>${fmt(p.cells)}</div>`:''}${p.effort?`<div>Calc effort</div><div>${p.effort}%</div>`:''}${prop('Parent',p.parent)}${p.isSum==='true'?'<div>Is summary</div><div>Yes</div>':''}${prop('Style',p.style)}${prop('Formula scope',p.scope&&p.scope!=='All Versions'?p.scope:'')}${prop('Code',p.code)}${prop('Data tags',p.tags)}${prop('Read access (DCA)',p.rd)}${prop('Write access (DCA)',p.wr)}</div>`:''}
+   ${S.g.hasMeta?`<div class="kv" style="margin-top:8px">${prop('Format',showFmt(p.fmt))}${prop('Summary',p.sum+(p.tsum&&p.tsum!==p.sum?' (time: '+p.tsum+')':''))}${prop('Time scale',p.ts)}${prop('Time range',showNames(p.tr,'t'))}${prop('Versions',showNames(p.ver,'v'))}${prop('Applies to',it.appliesTo&&it.appliesTo!=='-'?showLists(it.appliesTo):(m.meta.appliesTo?showLists(m.meta.appliesTo)+' (module)':''))}${p.cells?`<div>Cell count</div><div>${fmt(p.cells)}</div>`:''}${p.effort?`<div>Calc effort</div><div>${p.effort}%</div>`:''}${prop('Parent',showRef(p.parent,m))}${p.isSum==='true'?'<div>Is summary</div><div>Yes</div>':''}${prop('Style',p.style)}${prop('Formula scope',p.scope&&p.scope!=='All Versions'?showNames(p.scope,'v'):'')}${prop('Code',showHidden(p.code))}${prop('Data tags',showHidden(p.tags))}${prop('Read access (DCA)',showRef(p.rd,m))}${prop('Write access (DCA)',showRef(p.wr,m))}</div>`:''}
    <h3>Formula</h3>${it.formula?(isAnon()?'<p class="muted">Hidden while anonymised.</p>':`<pre class="formula">${esc(it.formula)}</pre>`):'<p class="muted" style="margin:0">No formula (input or data line item).</p>'}
    ${p.notes&&!isAnon()?`<h3>Notes</h3><p style="margin:0;font-size:13px">${esc(p.notes)}</p>`:''}
    <h3>Inputs (${fmt(it.ins.length)})</h3>${connGroups(it.ins,'u')||'<p class="muted" style="margin:0">None. This is a source (input or data).</p>'}
@@ -1200,7 +1218,7 @@ function setSeg(id,v){ document.querySelectorAll('#'+id+' button').forEach(b=>b.
 document.querySelectorAll('#groupSeg button').forEach(b=>b.onclick=()=>{ if(!S.g||b.disabled) return; S.groupBy=b.dataset.v; setSeg('groupSeg',S.groupBy); const n=S.nav; if(n.level==='lane') go({level:'model'}); else { if(n.mk) n.lane=laneOf(mod(n.mk)); render(); } });
 $('hl').onchange=()=>{ S.hl=$('hl').value; S.hlFilter=null; if(S.g) render(); };
 $('linkStyle').onchange=()=>{ if(cy) cy.style(styles()); };
-$('anon').onchange=()=>{ if(!S.g) return; buildSearch(); render(); renderProfile(); renderInsights(); };
+$('anon').onchange=()=>{ if(!S.g) return; $('search').value=''; $('results').style.display='none'; buildSearch(); render(); renderProfile(); renderInsights(); };
 $('zin').onclick=()=>$('sheet').style.display==='block'?setZoom(SZ*1.15):cy&&cy.animate({zoom:{level:cy.zoom()*1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
 $('zout').onclick=()=>$('sheet').style.display==='block'?setZoom(SZ/1.15):cy&&cy.animate({zoom:{level:cy.zoom()/1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
 $('zfit').onclick=()=>$('sheet').style.display==='block'?(()=>{ const w=$('sheet').querySelector('.sh-wrap'); setZoom(1); setZoom(Math.min(1,$('sheet').clientWidth/w.scrollWidth)); })():cy&&cy.animate({fit:{eles:cy.elements(),padding:40}},{duration:300});
