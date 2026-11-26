@@ -438,7 +438,7 @@ function buildGraph(items,modules,hasRB){
 }
 
 </script>
-<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js" integrity="sha384-IWROdLKRsN1UuJywMlWl7/blXQ8GEooN2n7dzTxfEPd7ybYIKCUJ2Ol/1Gpf3YV4" crossorigin="anonymous"></script>
 <script>
 /* ================= Anaplan Lineage Explorer: UI ================= */
 const $=id=>document.getElementById(id);
@@ -576,6 +576,7 @@ async function parseOnMain(files){
 async function loadText(files){
   busy(true,'Reading file'); $('err').textContent='';
   try{
+    if(typeof cytoscape!=='function') throw new Error("The drawing library (Cytoscape.js) didn't load. Check your internet connection, or whether your network blocks cdn.jsdelivr.net, then reload the page.");
     let res; try{ res=await parseInWorker(files); }catch(e){ if(e&&e.fallback) res=await parseOnMain(files); else throw e; }
     busy(true,'Building the map'); await nextFrame();
     hydrate(res);
@@ -607,7 +608,10 @@ function hydrate(res){
   S.g={items,mods,modList,edgeCount:edges.length,dcaCount:dca.size,dca,modOut,modIn,source,sections:[...sections.values()],hasSections:hasDiv&&modules.length>0,
        hasMeta:items.some(i=>i.p&&(i.p.fmtType||i.p.sum))};
   S.byId=new Map(items.map(i=>[i.id,i]));
-  S.heatMax={effort:Math.max(1e-9,...items.map(i=>i.p.effort||0)),cells:Math.max(1e-9,...items.map(i=>Math.log10(1+(i.p.cells||0)))),len:Math.max(1,...items.map(i=>i.formula.length))};
+  /* a loop, not Math.max(...arr): spreading 150k+ items overflows the call stack */
+  let mxE=1e-9, mxC=1e-9, mxL=1;
+  for(const i of items){ mxE=Math.max(mxE,i.p.effort||0); mxC=Math.max(mxC,Math.log10(1+(i.p.cells||0))); mxL=Math.max(mxL,i.formula.length); }
+  S.heatMax={effort:mxE,cells:mxC,len:mxL};
   S.anonMap=null; S.focus=null; buildSearch();
 }
 async function loadFiles(fileList){
@@ -654,10 +658,6 @@ function styles(){
    {selector:'node',style:{'label':'data(label)','color':t.text,'font-size':11,'text-wrap':'wrap','min-zoomed-font-size':5,'border-width':0,'background-color':t.card}},
    {selector:'node[kind="lane"]',style:{'shape':'round-rectangle','background-color':'data(fill)','background-opacity':.07,'border-width':1.5,'border-color':'data(fill)','border-opacity':.6,
      'text-valign':'top','text-halign':'center','text-margin-y':-8,'font-size':15,'font-weight':600,'padding':26,'text-max-width':600,'corner-radius':14,'line-height':1.4}},
-   {selector:'node[kind="side"]',style:{'shape':'round-rectangle','background-color':'data(fill)','background-opacity':.05,'border-width':1,'border-color':'data(fill)','border-opacity':.45,
-     'text-valign':'top','text-halign':'center','text-margin-y':-6,'font-size':12,'font-weight':600,'color':t.sub,'padding':14,'corner-radius':10}},
-   {selector:'node[kind="box"]',style:{'shape':'round-rectangle','background-color':t.box,'background-opacity':.9,'border-width':1.4,'border-color':'data(fill)','border-opacity':.7,
-     'text-valign':'top','text-halign':'center','text-margin-y':-6,'font-size':12,'font-weight':600,'color':t.sub,'padding':16,'corner-radius':10,'text-max-width':400}},
    {selector:'node[kind="mod"], node[kind="card"]',style:{'shape':'round-rectangle','width':'data(w)','height':'data(h)','background-color':'data(bg)','border-width':1.6,'border-color':'data(fill)',
      'text-valign':'center','text-halign':'center','text-max-width':'data(tw)','line-height':1.35,'corner-radius':7}},
    {selector:'node.center',style:{'border-color':t.center,'border-width':2.6,'font-weight':600}},
@@ -758,44 +758,6 @@ function buildLane(l){
   return els;
 }
 
-/* ---------- Level 3: a module, its line items in calculation order, and its neighbours ---------- */
-function levels(ids,next){
-  const indeg=new Map(ids.map(i=>[i,0])), lvl=new Map(ids.map(i=>[i,0]));
-  for(const i of ids) for(const t of next(i)) if(indeg.has(t)) indeg.set(t,indeg.get(t)+1);
-  const q=ids.filter(i=>indeg.get(i)===0); let h=0;
-  while(h<q.length){ const i=q[h++]; for(const t of next(i)){ if(!indeg.has(t)) continue; lvl.set(t,Math.max(lvl.get(t),lvl.get(i)+1)); indeg.set(t,indeg.get(t)-1); if(indeg.get(t)===0) q.push(t); } }
-  return lvl;
-}
-function buildModule(mk){
-  const m=mod(mk), els=[], items=[...m.items.values()], ids=items.map(i=>i.id), idSet=new Set(ids), W=224, H=50, ROWS=14;
-  const lv=levels(ids,id=>S.byId.get(id).outs.filter(o=>idSet.has(o.id)).map(o=>o.id));
-  const byL=new Map(); items.forEach(it=>{ const l=lv.get(it.id); if(!byL.has(l)) byL.set(l,[]); byL.get(l).push(it); });
-  const local=[]; let col=0, maxR=0; const levelsN=byL.size, biggest=Math.max(...[...byL.values()].map(a=>a.length));
-  if(levelsN<=6&&biggest<=16){ /* few calculation steps: one column per step */
-    [...byL.keys()].sort((a,b)=>a-b).forEach(l=>{ const arr=byL.get(l).sort((a,b)=>a.idx-b.idx); arr.forEach((it,r)=>local.push([it,col,r])); maxR=Math.max(maxR,arr.length); col++; });
-  } else { /* many steps: fill a block in calculation order so it stays readable */
-    const order=[...byL.keys()].sort((a,b)=>a-b).flatMap(l=>byL.get(l).sort((a,b)=>a.idx-b.idx));
-    const rowsN=Math.max(6,Math.min(18,Math.ceil(Math.sqrt(order.length*W/(1.7*H)))));
-    order.forEach((it,i)=>local.push([it,Math.floor(i/rowsN),i%rowsN])); col=Math.ceil(order.length/rowsN); maxR=Math.min(rowsN,order.length); }
-  const cols=Math.max(1,col), pos=new Map();
-  els.push({data:{id:'B:'+mk,kind:'box',label:`${modLabel(m)}  ·  ${m.layer}${m.section&&S.g.hasSections?' · '+laneName(m.section):''}`,fill:modColor(m)}});
-  local.forEach(([it,c,r])=>{ const x=(c-(cols-1)/2)*W, y=(r-(maxR-1)/2)*H; pos.set(it.id,y); const col=itemColor(it);
-    const n=card(it.id,'card',twoLine(itemLabel(it),metaLine(it),32),col,{parent:'B:'+mk,ref:it.id,w:212,tw:204}); if(S.hl) n.data.bg=tint(col,.32); n.position={x,y}; els.push(n); });
-  const F=new Map(), C=new Map();
-  items.forEach(it=>{ it.ins.forEach(x=>{ if(x.mk!==mk){ if(!F.has(x.mk)) F.set(x.mk,new Map()); F.get(x.mk).set(it.id,(F.get(x.mk).get(it.id)||0)+1); } });
-    it.outs.forEach(o=>{ if(o.mk!==mk){ if(!C.has(o.mk)) C.set(o.mk,new Map()); C.get(o.mk).set(it.id,(C.get(o.mk).get(it.id)||0)+1); } }); });
-  const half=cols*W/2;
-  const side=(map,dir)=>{ let arr=[...map].map(([k,links])=>{ let s=0,n=0,refs=0; links.forEach((c,id)=>{ s+=pos.get(id); n++; refs+=c; }); return [k,links,s/n,refs]; });
-    const total=arr.length; arr.sort((a,b)=>b[3]-a[3]); arr=arr.slice(0,SIDE_CAP); arr.sort((a,b)=>a[2]-b[2]);
-    let y=-(arr.length-1)*H/2; const x=dir*(half+320);
-    arr.forEach(([k,links,,refs])=>{ const mm=mod(k); const n=card('m:'+k,'mod',twoLine(modLabel(mm),`${fmt(refs)} link${refs===1?'':'s'} · ${mm.layer}`),modColor(mm),{ref:k}); n.position={x,y}; modBg(n,mm); els.push(n); y+=H;
-      links.forEach((c,id)=>els.push({data:{id:(dir<0?'m:'+k+'>'+id:id+'>m:'+k),source:dir<0?'m:'+k:id,target:dir<0?id:'m:'+k,w:1.2},classes:(dir<0?'up':'dn')+' taxi'})); });
-    if(total>SIDE_CAP) els.push({data:{id:'more:'+dir,kind:'more',label:`+${total-SIDE_CAP} more modules`,w:200},position:{x,y:y+6}}); };
-  side(F,-1); side(C,1);
-  items.forEach(it=>it.outs.forEach(o=>{ if(idSet.has(o.id)) els.push({data:{id:it.id+'>'+o.id,source:it.id,target:o.id,w:1.1},classes:'taxi'+(S.g.dca.has(it.idx+'>'+o.idx)?' dca':'')}); }));
-  return els;
-}
-
 /* ---------- Level 4: focused lineage (line items, or whole modules for the module chain) ---------- */
 const LIN_STEP=60, LIN_CAP=1500;
 const isMod=id=>id.startsWith('m:');
@@ -814,32 +776,24 @@ function linGrow(dir){ const lin=S.focus; let edge=0; lin.lv.forEach(v=>{ if(dir
   let added=0; for(const [id,l] of [...lin.lv]) if(l===edge) added+=linExpand(id,dir); return added; }
 function linAll(dir){ let n=0,guard=0; while(guard++<60){ const a=linGrow(dir); n+=a; if(!a||S.focus.lv.size>=LIN_CAP) break; } return n; }
 function linFull(){ const lin=S.focus; if(!lin.full){ const up=new Set(),dn=new Set(); for(const [set,dir] of [[up,-1],[dn,1]]){ const st=[lin.id]; while(st.length){ const x=st.pop(); for(const y of nbs(x,dir)) if(y!==lin.id&&!set.has(y)){ set.add(y); st.push(y); } } } lin.full={up:up.size,dn:dn.size}; } return lin.full; }
-function buildLineage(){
-  const lin=S.focus, els=[], mods=isMod(lin.id), COLW=mods?320:300, ROWH=mods?50:50, GAPG=mods?0:56;
-  const grp=id=>mods?'':S.byId.get(id).mk;
+function buildLineage(){ /* module-to-module chain; line item lineage uses the blueprint sheet */
+  const lin=S.focus, els=[], COLW=320, ROWH=50;
   const byLevel=new Map(); lin.lv.forEach((l,id)=>{ if(!byLevel.has(l)) byLevel.set(l,[]); byLevel.get(l).push(id); });
   const ypos=new Map([[lin.id,0]]);
   const place=l=>{ const ids=byLevel.get(l); if(!ids) return; const inner=l<0?l+1:l-1;
     const bary=id=>{ const nb=nbs(id,l<0?1:-1).filter(x=>lin.lv.get(x)===inner&&ypos.has(x)).map(x=>ypos.get(x)); return nb.length?nb.reduce((a,b)=>a+b,0)/nb.length:0; };
-    const groups=new Map(); for(const id of ids){ const k=grp(id); if(!groups.has(k)) groups.set(k,[]); groups.get(k).push([bary(id),id]); }
-    const gl=[...groups].map(([k,arr])=>{ arr.sort((a,b)=>a[0]-b[0]); return [arr.reduce((t,x)=>t+x[0],0)/arr.length,k,arr]; }).sort((a,b)=>a[0]-b[0]);
-    const total=gl.reduce((t,[,,arr])=>t+arr.length*ROWH,0)+GAPG*(gl.length-1); let y=-total/2;
-    for(const [,,arr] of gl){ for(const [,id] of arr){ ypos.set(id,y+ROWH/2); y+=ROWH; } y+=GAPG; } };
+    const arr=ids.map(id=>[bary(id),id]).sort((a,b)=>a[0]-b[0]);
+    let y=-arr.length*ROWH/2; for(const [,id] of arr){ ypos.set(id,y+ROWH/2); y+=ROWH; } };
   for(let l=-1;byLevel.has(l);l--) place(l);
   for(let l=1;byLevel.has(l);l++) place(l);
-  const seenG=new Set();
   lin.lv.forEach((l,id)=>{
-    const x=l*COLW, y=ypos.get(id)||0; let gid=null, n;
-    if(mods){ const m=mod(id.slice(2)); n=card(id,'card',twoLine(modLabel(m),modMeta(m)+' · '+m.layer),modColor(m),{ref:m.key,w:220,tw:210}); modBg(n,m); }
-    else { const it=S.byId.get(id), m=mod(it.mk); gid='G:'+it.mk+'|'+l;
-      if(!seenG.has(gid)){ seenG.add(gid); els.push({data:{id:gid,kind:'box',ref:it.mk,label:modLabel(m),fill:modColor(m)}}); }
-      const col=itemColor(it); n=card(id,'card',twoLine(itemLabel(it),metaLine(it),32),col,{parent:gid,ref:id,w:212,tw:204}); if(S.hl) n.data.bg=tint(col,.32); }
+    const x=l*COLW, y=ypos.get(id)||0, m=mod(id.slice(2));
+    const n=card(id,'card',twoLine(modLabel(m),modMeta(m)+' · '+m.layer),modColor(m),{ref:m.key,w:220,tw:210}); modBg(n,m);
     n.position={x,y}; if(l===0) n.classes='center'; els.push(n);
-    for(const dir of l===0?[-1,1]:[l<0?-1:1]){ const h=linHidden(id,dir); if(h){ const e={data:{id:'x:'+dir+':'+id,kind:'exp',of:id,dir,label:'+'+fmt(h)},position:{x:x+dir*(mods?136:132),y}}; if(gid) e.data.parent=gid; els.push(e); } }
+    for(const dir of l===0?[-1,1]:[l<0?-1:1]){ const h=linHidden(id,dir); if(h) els.push({data:{id:'x:'+dir+':'+id,kind:'exp',of:id,dir,label:'+'+fmt(h)},position:{x:x+dir*136,y}}); }
   });
-  lin.lv.forEach((l,id)=>{ for(const o of nbs(id,1)){ const lo=lin.lv.get(o); if(lo===undefined||(mods&&lo!==l+1)) continue;
-    const dca=!mods&&S.g.dca.has(S.byId.get(id).idx+'>'+S.byId.get(o).idx);
-    els.push({data:{id:id+'>'+o,source:id,target:o,w:1.3},classes:'taxi '+(lo<=0?'up':'dn')+(dca?' dca':'')}); } });
+  lin.lv.forEach((l,id)=>{ for(const o of nbs(id,1)){ if(lin.lv.get(o)!==l+1) continue;
+    els.push({data:{id:id+'>'+o,source:id,target:o,w:1.3},classes:'taxi '+(l+1<=0?'up':'dn')}); } });
   return els;
 }
 
@@ -1017,17 +971,16 @@ function onTap(node){
   const k=node.data('kind'), n=S.nav;
   if(k==='lane'||(k==='more'&&node.data('lane'))) return go({level:'lane',lane:node.data('lane')});
   if(k==='exp'){ linExpand(node.data('of'),node.data('dir')); return render(); }
-  if(k==='mod'){ if(n.level==='module'&&node.data('ref')!==n.mk) return go({level:'module',mk:node.data('ref')}); return go({level:'module',mk:node.data('ref')}); }
+  if(k==='mod') return go({level:'module',mk:node.data('ref')});
   if(k==='card'){
     if(n.level==='module') return go({level:'item',id:node.id()});
     if(S.focus&&node.id()!==S.focus.id) return linRecentre(node.id());
     return renderDetails();
   }
-  if(k==='box'&&n.level==='item') return go({level:'module',mk:node.data('ref')});
 }
 function onTapEdge(e){ if(e.hasClass('lane')) showFlow(e.data('la'),e.data('lb')); }
 function onHover(node,p){
-  const k=node.data('kind'); if(k==='lane'||k==='side'||k==='box'||k==='more') return;
+  const k=node.data('kind'); if(k==='lane'||k==='more') return;
   showTip(node,p);
   if(k==='mod'&&S.nav.level==='model'){ const key=node.data('ref'), add=[];
     (S.g.modOut.get(key)||new Map()).forEach((w,b)=>{ if(cy.getElementById('m:'+b).length) add.push({group:'edges',data:{id:'t>'+b,source:'m:'+key,target:'m:'+b,w:Math.min(4,.8+Math.log2(w+1)*.5)},classes:'tmpdn'}); });
@@ -1104,7 +1057,7 @@ function renderDetails(){
      <h3>Modules (largest first)</h3>${ms.map(m=>`<div class="row" data-go="m:${esc(m.key)}" data-hover="m:${esc(m.key)}"><span>${esc(modLabel(m))}</span><span class="muted">${modMeta(m)}</span></div>`).join('')}`;
     return; }
   if(n.level==='module'||n.level==='chain'){ return moduleDetails(mod(n.mk)); }
-  if(n.level==='item'){ const sel=cy&&cy.$('node.center'); return itemDetails(S.byId.get(S.focus.id)); }
+  if(n.level==='item') return itemDetails(S.byId.get(S.focus.id));
 }
 function moduleDetails(m){
   const el=$('details'), items=[...m.items.values()], md=m.meta||{};
