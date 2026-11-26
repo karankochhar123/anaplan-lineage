@@ -4,6 +4,10 @@ An interactive, browser-only lineage map for Anaplan models, built the way a sol
 
 **Open the app:** https://karankochhar123.github.io/anaplan-lineage/
 
+No model to hand? Click **Try sample model** in the app, or download [`examples/sample-model.csv`](examples/sample-model.csv), a small made-up model.
+
+![Model map of the sample model: Data, Input and System lanes feed Calculation, which feeds Output. A dashed red arrow marks an output module feeding a calculation, which runs against DISCO.](docs/screenshots/model.png)
+
 ## Your data stays on your device
 
 - The whole app is a single `index.html` file. All parsing and drawing happen in your browser.
@@ -21,6 +25,10 @@ An interactive, browser-only lineage map for Anaplan models, built the way a sol
 | 4. Line item lineage | Columns of mini blueprints: inputs on the left and items that use it on the right, grouped by module, with row-to-row links. Expand with **+N**, **◀ +1 / +1 ▶**, or go all the way with **To source** and **To output**. |
 
 A breadcrumb (Model › Layer › Module › Line item) and **▲ Up** (or Backspace) move you between levels. **Module lineage** shows the module-to-module chain.
+
+![A module as a blueprint grid, with the modules that feed it on the left and the modules that use it on the right, wired to the exact rows.](docs/screenshots/module.png)
+
+![Line item lineage for Total Opex: two columns of inputs on the left, each grouped by module, linked row to row to the selected line item.](docs/screenshots/lineage.png)
 
 ## Look and feel
 
@@ -43,6 +51,12 @@ The app uses a light theme close to Anaplan's own interface by default, with a n
 - **DISCO layer** is inferred from module name prefixes: SYS/MAP → System, DAT/STG/IMP → Data, INP → Input, CAL → Calculation, OUT/REP/EXP/DSH → Output.
 - **Model sections** come from divider modules such as `--- REPORTING ---`. Your export needs the module rows for these (the full Line Items export includes them).
 
+![Model profile with the architect checks. "Flows against DISCO" is open and lists REP01 P&L Report feeding CAL03 Variance.](docs/screenshots/profile.png)
+
+## Sharing screenshots safely
+
+Tick **Anonymise** before you take a screenshot or export an image. Module, line item and section names become neutral labels (for example `CAL001`, `Line item 3.2`, `Section 1`). List, version and time range names become `List 1`, `Version 1` and `Time range 1`. Formulas, notes, codes and data tags are hidden. The same list keeps the same label everywhere, so the model's structure still reads correctly. Untick it to see the real names again.
+
 ## How to export from Anaplan
 
 1. In your model, open **Modules** and go to the **Line Items** tab.
@@ -64,6 +78,10 @@ npm test
 ```
 
 The tests read the code straight out of `index.html`, so there is nothing to build. They run on every push and pull request through GitHub Actions. All test data is made up.
+
+## Changes
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ## Feedback
 

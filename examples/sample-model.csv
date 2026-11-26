@@ -1,0 +1,46 @@
+,Format,Formula,Summary,Applies To,Time Scale,Versions,Cell Count,Calculation Effort,Module Name
+--- SYSTEM ---,,,,,,,,,
+SYS01 Time Settings,,,,-,Month,Not Applicable,49,,
+Forecast Start,Date,,None,-,Not Applicable,Not Applicable,1,00.00%,SYS01 Time Settings
+Is Actual,Boolean,START() < Forecast Start,None,-,Month,Not Applicable,24,00.01%,SYS01 Time Settings
+Is Forecast,Boolean,NOT Is Actual,None,-,Month,Not Applicable,24,00.01%,SYS01 Time Settings
+SYS02 Employee Properties,,,,Employee,Not Applicable,Not Applicable,1500,,
+Cost Centre,List: Cost Centre,,None,-,Not Applicable,Not Applicable,500,00.00%,SYS02 Employee Properties
+Annual Salary,Number,,Sum,-,Not Applicable,Not Applicable,500,00.00%,SYS02 Employee Properties
+Start Date,Date,,None,-,Not Applicable,Not Applicable,500,00.00%,SYS02 Employee Properties
+--- DATA & INPUTS ---,,,,,,,,,
+DAT01 GL Actuals,,,,"Cost Centre, Account",Month,All,96000,,
+Amount,Number,,Sum,-,Month,All,96000,00.00%,DAT01 GL Actuals
+DAT02 Headcount,,,,Employee,Month,Not Applicable,12000,,
+FTE,Number,,Sum,-,Month,Not Applicable,12000,00.00%,DAT02 Headcount
+INP01 Assumptions,,,,Cost Centre,Not Applicable,Not Applicable,120,,
+Salary Increase %,Number (%),,None,-,Not Applicable,Not Applicable,40,00.00%,INP01 Assumptions
+Super Rate %,Number (%),,None,-,Not Applicable,Not Applicable,40,00.00%,INP01 Assumptions
+Opex Growth %,Number (%),,None,-,Not Applicable,Not Applicable,40,00.00%,INP01 Assumptions
+--- CALCULATIONS ---,,,,,,,,,
+CAL01 Salary Calc,,,,Employee,Month,All,48000,,
+Monthly Salary,Number,'SYS02 Employee Properties'.Annual Salary / 12 * (1 + INP01 Assumptions.Salary Increase %[LOOKUP: 'SYS02 Employee Properties'.Cost Centre]),Sum,-,Month,All,12000,04.20%,CAL01 Salary Calc
+Super,Number,Monthly Salary * INP01 Assumptions.Super Rate %[LOOKUP: 'SYS02 Employee Properties'.Cost Centre],Sum,-,Month,All,12000,03.10%,CAL01 Salary Calc
+Employed?,Boolean,START() >= 'SYS02 Employee Properties'.Start Date,Any,-,Month,All,12000,01.20%,CAL01 Salary Calc
+Total Cost,Number,IF Employed? THEN (Monthly Salary + Super) * DAT02 Headcount.FTE ELSE 0,Sum,-,Month,All,12000,05.80%,CAL01 Salary Calc
+CAL02 Opex Forecast,,,,"Cost Centre, Account",Month,All,384000,,
+Actuals,Number,DAT01 GL Actuals.Amount,Sum,-,Month,All,96000,01.50%,CAL02 Opex Forecast
+Forecast,Number,IF 'SYS01 Time Settings'.Is Forecast THEN PREVIOUS(Forecast) * (1 + INP01 Assumptions.Opex Growth %) ELSE Actuals,Sum,-,Month,All,96000,09.40%,CAL02 Opex Forecast
+Salary Cost,Number,CAL01 Salary Calc.Total Cost[SUM: 'SYS02 Employee Properties'.Cost Centre],Sum,-,Month,All,96000,06.30%,CAL02 Opex Forecast
+Total Opex,Number,Forecast + Salary Cost,Sum,-,Month,All,96000,02.10%,CAL02 Opex Forecast
+CAL03 Variance,,,,Cost Centre,Month,All,6000,,
+Budget,Number,,Sum,-,Month,All,1200,00.00%,CAL03 Variance
+Variance,Number,CAL02 Opex Forecast.Total Opex[SUM: Account] - Budget,Sum,-,Month,All,1200,01.10%,CAL03 Variance
+Variance %,Number (%),IF Budget = 0 THEN 0 ELSE Variance / Budget,Formula,-,Month,All,1200,00.90%,CAL03 Variance
+Variance Comment,Text,"IF Variance > 0 THEN ""Over budget"" ELSE ""On track""",Sum,-,Month,All,1200,00.40%,CAL03 Variance
+Prior Report Opex,Number,'REP01 P&L Report'.Opex,Sum,-,Month,All,1200,00.30%,CAL03 Variance
+Old Budget Uplift,Number,Budget * 1.1,Sum,-,Month,All,1200,00.20%,CAL03 Variance
+--- REPORTING ---,,,,,,,,,
+REP01 P&L Report,,,,"Cost Centre, Account",Month,All,24000,,
+Opex,Number,CAL02 Opex Forecast.Total Opex,Sum,-,Month,All,6000,00.80%,REP01 P&L Report
+Budget,Number,CAL03 Variance.Budget,Sum,-,Month,All,6000,00.40%,REP01 P&L Report
+Variance,Number,CAL03 Variance.Variance,Sum,-,Month,All,6000,00.40%,REP01 P&L Report
+Variance %,Number (%),CAL03 Variance.Variance %,Formula,-,Month,All,6000,00.70%,REP01 P&L Report
+REP02 Headcount Dashboard,,,,Cost Centre,Month,Not Applicable,480,,
+FTE,Number,DAT02 Headcount.FTE[SUM: 'SYS02 Employee Properties'.Cost Centre],Sum,-,Month,Not Applicable,240,01.60%,REP02 Headcount Dashboard
+Salary Cost,Number,CAL01 Salary Calc.Total Cost[SUM: 'SYS02 Employee Properties'.Cost Centre],Sum,-,Month,Not Applicable,240,01.90%,REP02 Headcount Dashboard

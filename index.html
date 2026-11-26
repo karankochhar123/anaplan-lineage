@@ -202,7 +202,7 @@ button.xp:hover{filter:brightness(.95)}
 <header>
  <div class="logo">
   <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="5" cy="13" r="3.2" fill="#2fd3a7"/><circle cx="13" cy="5" r="3.2" fill="#6c8cff"/><circle cx="13" cy="21" r="3.2" fill="#f5b942"/><circle cx="21" cy="13" r="3.2" fill="#ff7a59"/><path d="M7.6 11.4 10.6 7M7.6 14.6l3 4.4M15.6 7l3 4.4M15.6 19l3-4.4" stroke="#93a0bd" stroke-width="1.3" fill="none"/></svg>
-  Anaplan Lineage Explorer
+  Anaplan Lineage Explorer <span id="appVersion" class="muted" style="font-size:12px;font-weight:400">v1.0.0</span>
  </div>
  <span class="pill" title="All parsing happens in this browser tab. The page's security policy blocks network requests."><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Runs in your browser · nothing is uploaded</span>
  <span class="spacer"></span>
@@ -469,6 +469,7 @@ function parseFiles(files,onProgress){
 /* ================= Anaplan Lineage Explorer: UI ================= */
 const $=id=>document.getElementById(id);
 const fmt=n=>Math.round(n).toLocaleString();
+const plural=(n,word)=>fmt(n)+' '+word+(Math.round(n)===1?'':'s');
 const short=n=>n>=1e9?(n/1e9).toFixed(1)+'B':n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'k':String(Math.round(n));
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const trunc=(s,n)=>{s=String(s);return s.length>n?s.slice(0,n-1)+'…':s;};
@@ -758,7 +759,7 @@ function buildModel(){
       blocks.push({l,ms,shown,rows,cols}); colW=Math.max(colW,cols*W); });
     const total=blocks.reduce((t,b)=>t+b.rows*H+110,0)-110; y=-total/2;
     blocks.forEach(b=>{ const {l,ms,shown,rows,cols}=b; let items=0,cells=0; ms.forEach(m=>{items+=m.size;cells+=modCells(m);});
-      els.push({data:{id:'L:'+l,kind:'lane',lane:l,label:`${laneName(l)}\n${ms.length} modules · ${fmt(items)} line items${cells?' · '+short(cells)+' cells':''}`,fill:laneColor(l),fs:15}});
+      els.push({data:{id:'L:'+l,kind:'lane',lane:l,label:`${laneName(l)}\n${plural(ms.length,'module')} · ${plural(items,'line item')}${cells?' · '+short(cells)+' cells':''}`,fill:laneColor(l),fs:15}});
       shown.forEach((m,i)=>{ const c=Math.floor(i/rows), r=i%rows; const n=card('m:'+m.key,'mod',twoLine(modLabel(m),modMeta(m),32),modColor(m),{parent:'L:'+l,ref:m.key,w:218,tw:208});
         n.position={x:x+c*W+W/2+(colW-cols*W)/2,y:y+r*H+H/2}; modBg(n,m); els.push(n); });
       if(!all&&ms.length>shown.length) els.push({data:{id:'more:'+l,kind:'more',lane:l,parent:'L:'+l,label:`+${ms.length-shown.length} more · open ${laneName(l)}`,w:218},position:{x:x+colW/2,y:y+shown.length*H+H/2}});
@@ -770,7 +771,7 @@ function buildModel(){
     const bad=S.groupBy==='layer'&&LAYER_RANK[la]!==undefined&&LAYER_RANK[lb]!==undefined&&LAYER_RANK[la]>LAYER_RANK[lb];
     const same=colIdx.get(la)===colIdx.get(lb), dy=laneRows.get(lb)-laneRows.get(la);
     const cpd=same?(dy>0?-1:1)*(90+Math.abs(dy)*.12):(colIdx.get(lb)>colIdx.get(la)?-25:60);
-    els.push({data:{id:'F:'+k,source:'L:'+la,target:'L:'+lb,la,lb,refs,lbl:fmt(refs)+' refs',cpd,w:Math.min(12,1.5+Math.log2(refs+1)*1.1)},classes:'lane'+(bad?' bad':'')}); });
+    els.push({data:{id:'F:'+k,source:'L:'+la,target:'L:'+lb,la,lb,refs,lbl:plural(refs,'ref'),cpd,w:Math.min(12,1.5+Math.log2(refs+1)*1.1)},classes:'lane'+(bad?' bad':'')}); });
   return els;
 }
 function modBg(n,m){ if(S.hl&&isHeat(S.hl)){ let v=0; m.items.forEach(it=>v=Math.max(v,heatVal(it,S.hl))); n.data.bg=tint(heatColor(v/S.heatMax[S.hl]),.55); } }
@@ -780,7 +781,7 @@ const SIDE_CAP=60;
 function buildLane(l){
   const els=[], ms=laneMods(l), inLane=new Set(ms.map(m=>m.key)), W=212, H=54;
   const R=Math.max(4,Math.min(18,Math.ceil(Math.sqrt(ms.length*1.4)))), rows=Math.min(ms.length,R), cols=Math.ceil(ms.length/rows);
-  els.push({data:{id:'L:'+l,kind:'lane',lane:l,label:`${laneName(l)} · ${ms.length} modules`,fill:laneColor(l)}});
+  els.push({data:{id:'L:'+l,kind:'lane',lane:l,label:`${laneName(l)} · ${plural(ms.length,'module')}`,fill:laneColor(l)}});
   ms.forEach((m,i)=>{ const c=Math.floor(i/rows), r=i%rows; const n=card('m:'+m.key,'mod',twoLine(modLabel(m),modMeta(m)),modColor(m),{parent:'L:'+l,ref:m.key}); n.position={x:(c-(cols-1)/2)*W,y:(r-(rows-1)/2)*H}; modBg(n,m); els.push(n); });
   const F=new Map(), C=new Map();
   ms.forEach(m=>{ (S.g.modIn.get(m.key)||[]).forEach(a=>{ if(!inLane.has(a)&&!mod(a).divider) F.set(a,(F.get(a)||0)+S.g.modOut.get(a).get(m.key)); });
@@ -876,7 +877,7 @@ function renderModuleSheet(mk){
       (meta?`<td>${esc(apFmt(p))}</td>`:'')+`<td class="f" title="${isAnon()?'':esc(it.formula)}">${isAnon()?(it.formula?'•••':''):esc(it.formula)}</td>`+
       (meta?`<td>${esc(p.sum||'')}</td><td>${esc(p.ts||'')}</td><td>${esc(showNames(p.ver,'v'))}</td><td>${ap}</td>`:'')+(showCells?`<td class="n">${p.cells?fmt(p.cells):''}</td>`:'')+
       `<td class="n">${it.ins.length}${ei?` <span class="ext u" title="${ei} from other modules">${ei}↗</span>`:''}</td><td class="n">${it.outs.length}${eo?` <span class="ext d" title="${eo} in other modules">${eo}↗</span>`:''}</td></tr>`; }).join('');
-  const head=`<div class="sh-head" data-head="${esc(mk)}"><i style="background:${modColor(m)}"></i><span class="nm">${esc(modLabel(m))}</span><small>${m.layer}${m.section&&S.g.hasSections?' · '+esc(sectionName(m.section)):''} · ${fmt(m.size)} line items${appliesMod?' · '+esc(appliesMod):''}${md.ts&&md.ts!=='Not Applicable'?' · '+esc(md.ts):''}${modCells(m)?' · '+short(modCells(m))+' cells':''}</small></div>`;
+  const head=`<div class="sh-head" data-head="${esc(mk)}"><i style="background:${modColor(m)}"></i><span class="nm">${esc(modLabel(m))}</span><small>${m.layer}${m.section&&S.g.hasSections?' · '+esc(sectionName(m.section)):''} · ${plural(m.size,'line item')}${appliesMod?' · '+esc(appliesMod):''}${md.ts&&md.ts!=='Not Applicable'?' · '+esc(md.ts):''}${modCells(m)?' · '+short(modCells(m))+' cells':''}</small></div>`;
   const th=`<tr><th>Line Items</th>${meta?'<th>Format</th>':''}<th>Formula</th>${meta?'<th>Summary</th><th>Time Scale</th><th>Versions</th><th>Applies To</th>':''}${showCells?'<th>Cell Count</th>':''}<th>Inputs</th><th>Used By</th></tr>`;
   $('sheet').innerHTML=`<div class="sh-wrap" style="zoom:${SZ}"><div class="sh-row">
      <div class="sh-side" id="shL"><h4>Feeds this module (${F.size})</h4>${sideHTML(Fl,-1)}</div>
@@ -1036,7 +1037,7 @@ function showTip(n,p){
   const t=$('tip'), k=n.data('kind'); let html='';
   if(k==='exp'){ const mo=isMod(n.data('of')); html=`Show ${n.data('label').slice(1)} more ${n.data('dir')<0?(mo?'modules that feed it':'inputs'):(mo?'modules it feeds':'items that use it')}`; }
   else if(k==='mod'||(k==='card'&&isMod(n.id()))){ const m=mod(n.data('ref')); if(!m) return;
-    html=`<b>${esc(modLabel(m))}</b><span class="muted">${m.layer}${m.section&&S.g.hasSections?' · '+esc(sectionName(m.section)):''}</span><div class="kv"><div>Line items</div><div>${fmt(m.size)}</div><div>Cells</div><div>${fmt(modCells(m))}</div><div>Feeds from</div><div>${(S.g.modIn.get(m.key)||new Set()).size} modules</div><div>Feeds into</div><div>${(S.g.modOut.get(m.key)||new Map()).size} modules</div></div><div class="note">Click to open</div>`; }
+    html=`<b>${esc(modLabel(m))}</b><span class="muted">${m.layer}${m.section&&S.g.hasSections?' · '+esc(sectionName(m.section)):''}</span><div class="kv"><div>Line items</div><div>${fmt(m.size)}</div><div>Cells</div><div>${fmt(modCells(m))}</div><div>Feeds from</div><div>${plural((S.g.modIn.get(m.key)||new Set()).size,'module')}</div><div>Feeds into</div><div>${plural((S.g.modOut.get(m.key)||new Map()).size,'module')}</div></div><div class="note">Click to open</div>`; }
   else if(k==='card'){ const it=S.byId.get(n.id()); if(!it) return; const p=it.p||{};
     html=`<b>${esc(itemLabel(it))}</b><span class="muted">${esc(modLabel(mod(it.mk)))} · ${it.ins.length} in · ${it.outs.length} out</span>${S.g.hasMeta?`<div class="kv"><div>Format</div><div>${esc(showFmt(p.fmt)||'—')}</div><div>Summary</div><div>${esc(p.sum||'—')}${p.tsum&&p.tsum!==p.sum?' (time: '+esc(p.tsum)+')':''}</div><div>Time scale</div><div>${esc(p.ts||'—')}</div>${p.cells?`<div>Cells</div><div>${fmt(p.cells)}</div>`:''}${p.effort?`<div>Calc effort</div><div>${p.effort}%</div>`:''}</div>`:''}${it.formula&&!isAnon()?`<code>${esc(trunc(it.formula,300))}</code>`:''}`; }
   else return;
@@ -1087,14 +1088,14 @@ function renderDetails(){
     const L=lanes();
     el.innerHTML=`<div class="title">Model overview</div><div class="sub">Grouped by ${S.groupBy==='section'?'model sections (from divider modules)':'DISCO layer (from module name prefixes)'}</div>
      <div class="stats"><div class="stat"><b>${fmt(g.modList.length)}</b><span>Modules</span></div><div class="stat"><b>${fmt(g.items.length)}</b><span>Line items</span></div><div class="stat"><b>${fmt(formulas)}</b><span>Formulas</span></div><div class="stat"><b>${fmt(g.edgeCount)}</b><span>References${g.dcaCount?' (incl. '+fmt(g.dcaCount)+' DCA)':''}</span></div></div>
-     <h3>${S.groupBy==='section'?'Sections':'Layers'}</h3>${L.map(l=>{ const ms=laneMods(l); let it=0,c=0; ms.forEach(m=>{it+=m.size;c+=modCells(m);}); return `<div class="row" data-go="L:${esc(l)}"><span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:${laneColor(l)}"></i>${esc(laneName(l))}</span><span class="muted">${ms.length} modules · ${fmt(it)} items${c?' · '+short(c)+' cells':''}</span></div>`; }).join('')}
+     <h3>${S.groupBy==='section'?'Sections':'Layers'}</h3>${L.map(l=>{ const ms=laneMods(l); let it=0,c=0; ms.forEach(m=>{it+=m.size;c+=modCells(m);}); return `<div class="row" data-go="L:${esc(l)}"><span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:${laneColor(l)}"></i>${esc(laneName(l))}</span><span class="muted">${plural(ms.length,'module')} · ${plural(it,'item')}${c?' · '+short(c)+' cells':''}</span></div>`; }).join('')}
      <p class="note">Click a ${S.groupBy==='section'?'section':'layer'} or module to drill down. Hover a module to see what it connects to. Click a number on an arrow to list the module pairs behind it.</p>`;
     return; }
   if(n.level==='lane'){
     const ms=laneMods(n.lane).slice().sort((a,b)=>b.size-a.size);
     const inL=new Map(), outL=new Map(); ms.forEach(m=>{ (S.g.modIn.get(m.key)||[]).forEach(a=>{ const l=laneOf(mod(a)); if(l!==n.lane) inL.set(l,(inL.get(l)||0)+S.g.modOut.get(a).get(m.key)); }); (S.g.modOut.get(m.key)||new Map()).forEach((w,b)=>{ const l=laneOf(mod(b)); if(l!==n.lane) outL.set(l,(outL.get(l)||0)+w); }); });
-    const lr=(map)=>[...map].sort((a,b)=>b[1]-a[1]).map(([l,w])=>`<div class="row" data-go="L:${esc(l)}"><span>${esc(laneName(l))}</span><span class="muted">${fmt(w)} refs</span></div>`).join('')||'<p class="muted" style="margin:0">None</p>';
-    el.innerHTML=`<div class="title">${esc(laneName(n.lane))}</div><div class="sub">${ms.length} modules</div>
+    const lr=(map)=>[...map].sort((a,b)=>b[1]-a[1]).map(([l,w])=>`<div class="row" data-go="L:${esc(l)}"><span>${esc(laneName(l))}</span><span class="muted">${plural(w,'ref')}</span></div>`).join('')||'<p class="muted" style="margin:0">None</p>';
+    el.innerHTML=`<div class="title">${esc(laneName(n.lane))}</div><div class="sub">${plural(ms.length,'module')}</div>
      <h3>Fed by</h3>${lr(inL)}<h3>Feeds into</h3>${lr(outL)}
      <h3>Modules (largest first)</h3>${ms.map(m=>`<div class="row" data-go="m:${esc(m.key)}" data-hover="m:${esc(m.key)}"><span>${esc(modLabel(m))}</span><span class="muted">${modMeta(m)}</span></div>`).join('')}`;
     return; }
@@ -1131,7 +1132,7 @@ function showFlow(la,lb){
   const pairs=[]; S.g.modOut.forEach((t,a)=>t.forEach((w,b)=>{ const ma=mod(a),mb=mod(b); if(!ma.divider&&!mb.divider&&laneOf(ma)===la&&laneOf(mb)===lb) pairs.push([a,b,w]); }));
   pairs.sort((x,y)=>y[2]-x[2]);
   const bad=S.groupBy==='layer'&&LAYER_RANK[la]>LAYER_RANK[lb];
-  $('details').innerHTML=`<div class="title">${esc(laneName(la))} → ${esc(laneName(lb))}</div><div class="sub">${pairs.length} module pairs · ${fmt(pairs.reduce((t,x)=>t+x[2],0))} references</div>
+  $('details').innerHTML=`<div class="title">${esc(laneName(la))} → ${esc(laneName(lb))}</div><div class="sub">${plural(pairs.length,'module pair')} · ${plural(pairs.reduce((t,x)=>t+x[2],0),'reference')}</div>
    ${bad?'<p class="bad" style="font-size:13px;margin:4px 0 10px">This flow runs against DISCO: a later layer feeds an earlier one.</p>':''}
    ${pairs.slice(0,300).map(([a,b,w])=>`<div class="row" data-go="m:${esc(b)}"><span>${esc(modLabel(mod(a)))} → ${esc(modLabel(mod(b)))}</span><span class="muted">${fmt(w)}</span></div>`).join('')}`;
   switchTab('details');
