@@ -49,11 +49,21 @@ The app uses a light theme close to Anaplan's own interface by default, with a n
 2. Select all rows and choose **Export** → **CSV**, including all columns.
 3. Drag the CSV onto the app, or click **Load CSV export**.
 
-**Lineage source.** When the export includes the **Referenced By** column, the app uses Anaplan's own references, plus links from dynamic cell access drivers. Without it, the app reads the formulas instead. Formula reading matched about 97% of Anaplan's references on a real model; the rest come from cases such as COLLECT().
+**Lineage source.** When the export includes the **Referenced By** column, the app uses Anaplan's own references, plus links from dynamic cell access drivers. Without it, the app reads the formulas instead. You can load several exports at once, with and without the column: each file uses its own Referenced By where it has one, and formula reading covers the rest. Formula reading matched about 97% of Anaplan's references on a real model; the rest come from cases such as COLLECT().
 
 ## Run it locally
 
 Download `index.html` and open it in Chrome, Edge, Safari or Firefox. It needs internet access the first time so it can load Cytoscape.js.
+
+## Tests
+
+The parsing code is tested with Node's built-in test runner (Node 22 or later, no packages to install):
+
+```
+npm test
+```
+
+The tests read the code straight out of `index.html`, so there is nothing to build. They run on every push and pull request through GitHub Actions. All test data is made up.
 
 ## Feedback
 
