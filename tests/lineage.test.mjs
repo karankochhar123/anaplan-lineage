@@ -100,27 +100,33 @@ test('explains an export with no line items', () => {
   assert.throws(() => parse('Module,Line Item,Formula\n'), /No line items found/);
 });
 
-// ---- Known gaps in formula parsing (fixed in the next commit) ----
+// ---- Cases the earlier keyword-splitting parser got wrong ----
 
-test('reads unquoted names that contain AND, OR or other keywords', { todo: 'longest-name matching' }, () => {
+test('reads unquoted names that contain AND, OR or other keywords', () => {
   const r = formulaModel([['M', 'Profit and Loss', ''], ['M', 'Flag', 'IF Profit and Loss > 0 THEN 1 ELSE 0']]);
   assert.deepEqual(edges(r), ['M.Profit and Loss -> M.Flag']);
 });
 
-test('does not treat the LOOKUP keyword in brackets as a line item', { todo: 'skip bracket keywords' }, () => {
+test('does not treat the LOOKUP keyword in brackets as a line item', () => {
   const r = formulaModel([['M', 'Lookup', ''], ['M', 'Src', ''], ['M', 'Key', ''], ['M', 'X', 'Src[LOOKUP: Key]']]);
   assert.deepEqual(edges(r), ['M.Key -> M.X', 'M.Src -> M.X']);
 });
 
-test('does not treat a function name after a keyword as a line item', { todo: 'drop the called name' }, () => {
+test('does not treat a function name after a keyword as a line item', () => {
   const r = formulaModel([['M', 'Value', ''], ['M', 'Code', ''], ['M', 'Out', 'IF Code = "" THEN 0 ELSE VALUE(Code)']]);
   assert.deepEqual(edges(r), ['M.Code -> M.Out']);
 });
 
-test('combines files with and without Referenced By', { todo: 'decide per file' }, () => {
-  const withRB = csv([['Module', 'Line Item', 'Formula', 'Referenced By'], ['A', 'x', '', 'A.y'], ['A', 'y', 'x', '']]);
-  const formulasOnly = csv([['Module', 'Line Item', 'Formula'], ['B', 'z', 'A.y * 2']]);
+test('combines files with and without Referenced By', () => {
+  // Referenced By is model-wide, so A's export already lists B.z. B.w feeds A.y2, which only B's formulas can show.
+  const withRB = csv([
+    ['Module', 'Line Item', 'Formula', 'Referenced By'],
+    ['A', 'x', '', 'A.y'],
+    ['A', 'y', 'x', 'B.z'],
+    ['A', 'y2', 'B.w + 1', '-'],
+  ]);
+  const formulasOnly = csv([['Module', 'Line Item', 'Formula'], ['B', 'w', ''], ['B', 'z', 'A.y * 2']]);
   const r = parse(withRB, formulasOnly);
   assert.equal(r.source, 'mixed');
-  assert.deepEqual(edges(r), ['A.x -> A.y', 'A.y -> B.z']);
+  assert.deepEqual(edges(r), ['A.x -> A.y', 'A.y -> B.z', 'B.w -> A.y2']);
 });

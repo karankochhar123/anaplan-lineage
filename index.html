@@ -309,6 +309,7 @@ function decodeSummary(s){
   s=String(s||'').trim(); if(!s) return {method:'',time:''};
   if(s[0]==='{'){ try{ const j=JSON.parse(s), m=SUM_NAMES[j.summaryMethod]||j.summaryMethod||'', t=SUM_NAMES[j.timeSummaryMethod]||j.timeSummaryMethod||'';
       return {method:m,time:j.timeSummarySameAsMainSummary?m:t}; }catch(e){} }
+  const known=SUM_NAMES[s.toUpperCase().replace(/[\s-]+/g,'_')]; if(known) return {method:known,time:known};
   const m=s.replace(/_/g,' ').toLowerCase().replace(/^\w/,c=>c.toUpperCase()); return {method:m,time:m};
 }
 const num=v=>{ const x=parseFloat(String(v||'').replace(/[,%\s]/g,'')); return isFinite(x)?x:0; };
@@ -356,7 +357,8 @@ function indexItems(items,modules){
 }
 
 /* Formula tokeniser: names containing operators must be quoted in Anaplan, so split on
-   operators outside quotes and resolve each piece with hash lookups. */
+   operators outside quotes and resolve each piece with hash lookups.
+   Each segment notes whether it was followed by '(' (call) or ':' (label, as in [SUM: x]). */
 const OPS='()[],+-*/=<>&:;{}|^!';
 const KW=new Set(['if','then','else','and','or','not']);
 function tokenize(formula){
@@ -366,18 +368,32 @@ function tokenize(formula){
     if(dq){ if(c==='"') dq=false; continue; }
     if(c==='"'&&!q){ dq=true; if(cur.trim()) segs.push({t:cur.trim(),call:false}); cur=''; continue; }
     if(c==="'"){q=!q;cur+=c;continue;}
-    if(!q&&OPS.indexOf(c)>=0){ const t=cur.trim(); if(t) segs.push({t,call:c==='('}); cur=''; continue; }
+    if(!q&&OPS.indexOf(c)>=0){ const t=cur.trim(); if(t) segs.push({t,call:c==='(',label:c===':'}); cur=''; continue; }
     cur+=c;
   }
   const t=cur.trim(); if(t) segs.push({t,call:false});
   return segs;
 }
-function splitKeywords(t){
-  const parts=[];let buf='',word='',q=false;
-  const flush=()=>{ if(word){ if(KW.has(word.toLowerCase())){ if(buf.trim()) parts.push(buf.trim()); buf=''; } else buf+=(buf?' ':'')+word; } word=''; };
-  for(const c of t){ if(c==="'"){q=!q;word+=c;} else if(!q&&(c===' '||c==='\t'||c==='\n'||c==='\r')) flush(); else word+=c; }
-  flush(); if(buf.trim()) parts.push(buf.trim());
-  return parts;
+/* words outside quotes, so 'Module Name'.Item stays together */
+function words(t){
+  const out=[];let w='',q=false;
+  for(const c of t){ if(c==="'"){q=!q;w+=c;} else if(!q&&(c===' '||c==='\t'||c==='\n'||c==='\r')){ if(w) out.push(w); w=''; } else w+=c; }
+  if(w) out.push(w); return out;
+}
+/* At each word, take the longest run of words that is a known name. Unquoted names may contain
+   AND, OR, IF..., so keywords are not split out first; a keyword on its own is never a name. */
+const MAX_NAME_WORDS=16;
+function matchNames(ws,own,mods){
+  const hits=[];
+  for(let i=0;i<ws.length;){
+    let len=0;
+    for(let j=Math.min(ws.length,i+MAX_NAME_WORDS);j>i;j--){
+      if(j-i===1&&KW.has(ws[i].toLowerCase())) continue;
+      const h=lookup(ws.slice(i,j).join(' '),own,mods); if(h){ hits.push(h); len=j-i; break; }
+    }
+    i+=len||1;
+  }
+  return hits;
 }
 function unq(s){s=s.trim();return (s.length>1&&s[0]==="'"&&s[s.length-1]==="'")?s.slice(1,-1):s;}
 function lookup(t,own,mods){
@@ -399,10 +415,13 @@ function findRefs(items,mods,onProgress){
     const own=mods.get(it.mk); let skipNext=false;
     for(const s of tokenize(it.formula)){
       if(skipNext){ skipNext=false; continue; }
-      if(s.call&&/^(finditem|item)$/i.test(s.t)){ skipNext=true; continue; } /* first argument is a list, not a line item */
-      if(s.call&&/^[A-Za-z_][\w.]*$/.test(s.t)) continue;
-      const hit=lookup(s.t,own,mods);
-      const hits=hit?[hit]:splitKeywords(s.t).map(p=>lookup(p,own,mods)).filter(Boolean);
+      if(s.label) continue; /* SUM:, LOOKUP:, SELECT: */
+      let hits;
+      if(s.call){ /* the word before '(' is a function (or a keyword before a bracket), never a line item */
+        const ws=words(s.t), fn=ws.pop()||'';
+        if(/^(finditem|item)$/i.test(fn)) skipNext=true; /* their first argument is a list, not a line item */
+        hits=matchNames(ws,own,mods);
+      } else { const hit=lookup(s.t,own,mods); hits=hit?[hit]:matchNames(words(s.t),own,mods); }
       for(const h of hits){ if(h===it) continue; const k=h.idx*1048576+ti; if(seen.has(k)) continue; seen.add(k); edges.push([h.idx,ti,0]); }
     }
   }
@@ -423,10 +442,13 @@ function dcaRefs(items,mods,existing){
     for(const drv of [it.p.rd,it.p.wr]){ if(!drv||drv==='-') continue; const t=lookup(drv,own,mods); if(!t||t===it) continue; const k=t.idx*1048576+it.idx; if(seen.has(k)) continue; seen.add(k); edges.push([t.idx,it.idx,1]); } }
   return edges;
 }
+/* A link X → Y comes from X's file: its Referenced By column when that file has one,
+   otherwise from reading Y's formula. Exports with and without the column can be combined. */
 function buildRefs(items,mods,onProgress){
-  const useRB=items.some(it=>it.rbFile);
-  const base=useRB?refsFromRB(items,mods):findRefs(items,mods,onProgress);
-  return {edges:base.concat(dcaRefs(items,mods,base)),source:useRB?'rb':'formula'};
+  const rbItems=items.filter(it=>it.rbFile), allRB=rbItems.length===items.length;
+  let base=rbItems.length?refsFromRB(rbItems,mods):[];
+  if(!allRB) base=base.concat(findRefs(items,mods,onProgress).filter(e=>!items[e[0]].rbFile));
+  return {edges:base.concat(dcaRefs(items,mods,base)),source:!rbItems.length?'formula':allRB?'rb':'mixed'};
 }
 
 /* Entry point (worker, main-thread fallback and tests): CSV texts → line items, modules and lineage edges */
@@ -577,7 +599,7 @@ async function loadText(files){
     busy(true,'Building the map'); await nextFrame();
     hydrate(res);
     $('empty').style.display='none'; $('legend').style.display='flex'; $('zoom').style.display='flex'; $('nav').style.display='flex';
-    $('srcNote').textContent=S.g.source==='rb'?"Lineage from Anaplan's Referenced By column":'Lineage from formula parsing';
+    $('srcNote').textContent=S.g.source==='rb'?"Lineage from Anaplan's Referenced By column":S.g.source==='mixed'?'Lineage from Referenced By and formula parsing':'Lineage from formula parsing';
     S.groupBy=S.g.hasSections&&S.groupBy==='section'?'section':'layer'; setSeg('groupSeg',S.groupBy); $('groupSeg').querySelector('[data-v="section"]').disabled=!S.g.hasSections;
     S.hl=''; S.hlFilter=null; $('hl').value='';
     go({level:'model'}); renderProfile(); S.insight={key:'refs',shown:50}; S.impact=null; renderInsights();
@@ -1144,7 +1166,7 @@ function renderProfile(){
   checks.push({t:'Empty modules',sev:'low',help:'Modules with no line items (dividers are excluded).',rows:empty.map(m=>({go:'m:'+m.key,l:modLabel(m),r:m.layer}))});
   const sevName={high:'High',med:'Medium',low:'Low',info:'Info'};
   el.innerHTML=`<div class="stats"><div class="stat"><b>${fmt(g.modList.length)}</b><span>Modules</span></div><div class="stat"><b>${fmt(items.length)}</b><span>Line items</span></div><div class="stat"><b>${fmt(formulas)}</b><span>Formulas</span></div><div class="stat"><b>${cells?short(cells):fmt(g.edgeCount)}</b><span>${cells?'Cells':'References'}</span></div></div>
-   <p class="note" style="margin-top:-4px">Lineage source: ${g.source==='rb'?"Anaplan's <b>Referenced By</b> column":'formula parsing (export has no Referenced By column)'}${g.dcaCount?`, plus ${fmt(g.dcaCount)} access-driver (DCA) links`:''}.</p>
+   <p class="note" style="margin-top:-4px">Lineage source: ${g.source==='rb'?"Anaplan's <b>Referenced By</b> column":g.source==='mixed'?"Anaplan's <b>Referenced By</b> column for files that have it, formula parsing for the others":'formula parsing (export has no Referenced By column)'}${g.dcaCount?`, plus ${fmt(g.dcaCount)} access-driver (DCA) links`:''}.</p>
    ${g.hasMeta?`<h3>Format</h3>${bars(countBy(items,i=>i.p.fmtType||'Unknown'),items.length,CAT_COLORS.fmt,'fmt')}
    <h3>Summary method</h3>${bars(countBy(items,i=>i.p.sum||'Unknown'),items.length,CAT_COLORS.sum,'sum')}
    <h3>Time scale</h3>${bars(countBy(items,i=>i.p.ts||'Unknown'),items.length,CAT_COLORS.ts,'ts')}

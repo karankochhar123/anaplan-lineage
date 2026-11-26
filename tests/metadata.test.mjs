@@ -32,7 +32,7 @@ test('decodes summary methods in both forms', () => {
   );
 });
 
-test('names plain-text summary methods the same way as JSON ones', { todo: 'map through SUM_NAMES' }, () => {
+test('names plain-text summary methods the same way as JSON ones', () => {
   assert.equal(decodeSummary('FIRST_NON_BLANK').method, 'First non-blank');
   assert.equal(decodeSummary('CLOSING_BALANCE').method, 'Closing balance');
 });
