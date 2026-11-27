@@ -12,6 +12,8 @@ All notable changes to this project are listed here. The format follows [Keep a 
   - **Performance:** costly functions and large Text line items, both on line items over 1 million cells.
 - Architect checks are ordered by severity.
 - With Anonymise on, findings that quote a formula are hidden.
+- **Compare two exports.** Load the newer export, click **Compare…** and choose an older one. A new **Changes** tab lists line items and modules added, removed or changed (with old and new values), lineage links added or removed, new and resolved check findings, and cell counts that moved by 10% or more. **Colour by → Changes** marks them on the map, and **Copy CSV** copies them all. Anonymise covers all of it.
+- `examples/sample-model-older.csv`, a made-up earlier version of the sample model, for trying the comparison.
 
 ## [1.0.0] - 2026-11-27
 

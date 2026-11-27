@@ -86,7 +86,7 @@ body.busy #busy{display:flex}
 #tip .kv{margin-top:4px}
 aside{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;min-height:0}
 .tabs{display:flex;border-bottom:1px solid var(--line)}
-.tabs button{flex:1;border:0;border-radius:0;background:none;color:var(--muted);padding:11px 6px}
+.tabs button{flex:1;border:0;border-radius:0;background:none;color:var(--muted);padding:11px 4px;font-size:12.5px;white-space:nowrap}
 .tabs button.on{color:var(--strong);box-shadow:inset 0 -2px 0 var(--accent)}
 .pane{padding:14px 16px;overflow:auto;flex:1}
 .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
@@ -226,10 +226,13 @@ button.xp:hover{filter:brightness(.95)}
   <option value="effort">Calculation effort</option>
   <option value="cells">Cell count</option>
   <option value="len">Formula length</option>
+  <option value="chg" disabled>Changes (compare first)</option>
  </select>
  <select id="linkStyle" title="How links are drawn"><option value="subtle">Links: subtle</option><option value="bold">Links: bold</option></select>
  <label class="chk"><input type="checkbox" id="anon">Anonymise</label>
  <div class="searchwrap"><input type="search" id="search" placeholder="Search module or line item" autocomplete="off"><div id="results"></div></div>
+ <button id="cmpBtn" disabled title="Compare the loaded model with an older export of the same model">Compare…</button>
+ <input id="cmpFile" type="file" accept=".csv,.txt,.tsv" multiple hidden>
  <button id="pngBtn">Export image</button>
 </div>
 
@@ -258,10 +261,11 @@ button.xp:hover{filter:brightness(.95)}
   </div>
  </div>
  <aside>
-  <div class="tabs"><button data-t="details" class="on">Details</button><button data-t="profile">Model profile</button><button data-t="insights">Rankings</button></div>
+  <div class="tabs"><button data-t="details" class="on">Details</button><button data-t="profile">Model profile</button><button data-t="insights">Rankings</button><button data-t="changes">Changes</button></div>
   <div class="pane" id="details"><p class="muted">Load a model to start.</p></div>
   <div class="pane" id="profile" style="display:none"><p class="muted">Load a model to see its profile and checks.</p></div>
   <div class="pane" id="insights" style="display:none"><p class="muted">Load a model to see rankings.</p></div>
+  <div class="pane" id="changes" style="display:none"><p class="muted">Load a model, then compare it with an older export.</p></div>
  </aside>
 </main>
 
@@ -571,7 +575,80 @@ function architectChecks(model){
   }
   for(const it of items){ const p=it.p||{}; if(p.fmtType==='Text'&&(p.cells||0)>LARGE_CELLS) bigText.rows.push({it,detail:shortNum(p.cells)+' cells'}); }
   groups.forEach(g=>{ if(g.length>1) for(const it of g) repeat.rows.push({it,detail:`same as ${g.length-1} other line item${g.length===2?'':'s'}`}); });
-  return [members,costly,bigText,inCal,calcIn,sub,repeat,nums,ifs];
+  /* the original summary and tidiness checks; the summary ones need format or summary data in the export */
+  const hasMeta=items.some(it=>it.p&&(it.p.fmtType||it.p.sum)), used=new Set(edges.map(e=>e[0]));
+  const nonNum=check('Non-numeric line items with a summary method','med','Text, list, date and time period line items rarely need a summary. Setting it to None saves memory and calculation.');
+  const boolSum=check('Boolean line items with a summary method','low','Any/All summaries on booleans are sometimes intended, but often left on by default. Check whether the totals are used.');
+  const fsum=check('Summary method "Formula"','med','Formula summaries recalculate the formula at every aggregate level, which can be expensive on large hierarchies.');
+  const unused=check('Not referenced by anything','low','Line items outside output modules that nothing references. Some may be shown on pages or exported, so check before deleting.');
+  const longF=check('Very long formulas (300+ characters)','low','Long formulas are harder to audit and often hide repeated logic. Consider splitting them into steps.');
+  for(const it of items){ const p=it.p||{}, f=it.formula||'';
+    if(hasMeta){
+      if(['Text','List','Date','Time period','No data'].includes(p.fmtType)&&p.sum&&p.sum!=='None') nonNum.rows.push({it,detail:p.fmtType+' · '+p.sum});
+      if(p.fmtType==='Boolean'&&p.sum&&p.sum!=='None') boolSum.rows.push({it,detail:p.sum});
+      if(p.sum==='Formula'||p.tsum==='Formula') fsum.rows.push({it,detail:''});
+    }
+    if(!used.has(it.idx)&&layer(it)!=='Output'&&p.fmtType!=='No data') unused.rows.push({it,detail:''});
+    if(f.length>300) longF.rows.push({it,detail:f.length.toLocaleString()+' chars'});
+  }
+  longF.rows.sort((a,b)=>b.it.formula.length-a.it.formula.length);
+  return [members,costly,bigText,inCal,...(hasMeta?[nonNum,fsum]:[]),calcIn,sub,repeat,nums,ifs,...(hasMeta?[boolSum]:[]),unused,longF];
+}
+
+/* ---------- Compare two exports ----------
+   Line items are matched by module name + line item name (exports carry no IDs), so a rename shows as
+   one removal and one addition. Each side is {items, byName, edges} as parseFiles builds it; checks are
+   optional (computed when missing). */
+const isDividerName=n=>/^\s*[-*=_#~]{2,}/.test(n)||/[-*=_#~]{3,}\s*$/.test(n);
+const CELL_CHANGE=0.1; /* report cell counts that grew or shrank by 10% or more */
+const COMPARE_FIELDS=[
+  {key:'formula',label:'Formula',get:it=>it.formula||'',same:(a,b)=>a.replace(/\s+/g,' ').trim()===b.replace(/\s+/g,' ').trim()},
+  {key:'fmt',label:'Format',get:it=>it.p.fmt||''},
+  {key:'sum',label:'Summary',get:it=>it.p.sum||''},
+  {key:'tsum',label:'Time summary',get:it=>it.p.tsum&&it.p.tsum!==it.p.sum?it.p.tsum:'',presence:'sum'}, /* only where it differs from Summary */
+  {key:'applies',label:'Applies To',get:it=>it.appliesTo&&it.appliesTo!=='-'?it.appliesTo:'',same:(a,b)=>splitList(a).map(norm).sort().join('|')===splitList(b).map(norm).sort().join('|')},
+  {key:'ts',label:'Time scale',get:it=>it.p.ts||''},
+  {key:'ver',label:'Versions',get:it=>it.p.ver||''},
+  {key:'rd',label:'Read access driver',get:it=>it.p.rd&&it.p.rd!=='-'?it.p.rd:''},
+  {key:'wr',label:'Write access driver',get:it=>it.p.wr&&it.p.wr!=='-'?it.p.wr:''},
+];
+const itemKey=it=>norm(it.module)+'\u0000'+norm(it.name);
+function realModules(byName){ return [...byName.values()].filter(m=>!(m.size===0&&isDividerName(m.name))); }
+function moduleCells(m){ if(m.meta&&m.meta.cells) return m.meta.cells; let c=0; m.items.forEach(it=>c+=(it.p&&it.p.cells)||0); return c; }
+function compareModels(before,after){
+  const index=side=>{ const m=new Map(); for(const it of side.items){ const k=itemKey(it); if(!m.has(k)) m.set(k,it); } return m; };
+  const B=index(before), A=index(after);
+  const out={modules:{added:[],removed:[]},items:{added:[],removed:[],changed:[]},links:{added:[],removed:[]},findings:{added:[],resolved:[]},cells:{modules:[],items:[]}};
+  /* modules */
+  const bmByName=new Map(realModules(before.byName).map(m=>[norm(m.name),m])), amByName=new Map(realModules(after.byName).map(m=>[norm(m.name),m]));
+  amByName.forEach((m,k)=>{ if(!bmByName.has(k)) out.modules.added.push(m); });
+  bmByName.forEach((m,k)=>{ if(!amByName.has(k)) out.modules.removed.push(m); });
+  /* line items: fields only count when both exports have the column */
+  const has=(side,f)=>side.items.some(it=>f.get(it)!=='');
+  const byKey=new Map(COMPARE_FIELDS.map(f=>[f.key,f]));
+  const fields=COMPARE_FIELDS.filter(f=>{ const g=f.presence?byKey.get(f.presence):f; return has(before,g)&&has(after,g); });
+  A.forEach((a,k)=>{ const b=B.get(k); if(!b){ out.items.added.push(a); return; }
+    const diffs=[]; for(const f of fields){ const x=f.get(b), y=f.get(a); if(!(f.same?f.same(x,y):x===y)) diffs.push({key:f.key,label:f.label,from:x,to:y}); }
+    if(diffs.length) out.items.changed.push({before:b,after:a,diffs}); });
+  B.forEach((b,k)=>{ if(!A.has(k)) out.items.removed.push(b); });
+  /* lineage between line items that exist in both exports */
+  const linkSet=(side,map)=>{ const s=new Map(); for(const [x,y] of side.edges){ const kx=itemKey(side.items[x]), ky=itemKey(side.items[y]); if(map.has(kx)&&map.has(ky)) s.set(kx+'>'+ky,[side.items[x],side.items[y]]); } return s; };
+  const both=new Map([...A].filter(([k])=>B.has(k)));
+  const lb=linkSet(before,both), la=linkSet(after,both);
+  la.forEach((pair,k)=>{ if(!lb.has(k)) out.links.added.push(pair); });
+  lb.forEach((pair,k)=>{ if(!la.has(k)) out.links.removed.push(pair); });
+  /* architect check findings, matched by check and line item */
+  const findings=side=>{ const m=new Map(); for(const c of side.checks||architectChecks(side)) for(const r of c.rows) m.set(c.t+'\u0000'+itemKey(r.it),{check:c.t,sev:c.sev,it:r.it,detail:r.detail,sensitive:r.sensitive}); return m; };
+  const fb=findings(before), fa=findings(after);
+  fa.forEach((f,k)=>{ if(!fb.has(k)) out.findings.added.push(f); });
+  fb.forEach((f,k)=>{ if(!fa.has(k)&&A.has(itemKey(f.it))) out.findings.resolved.push(f); }); /* removed line items are listed as removed, not as resolved */
+  /* cell counts that moved by CELL_CHANGE or more */
+  const moved=(x,y)=>x>0&&y>0&&Math.abs(y-x)/x>=CELL_CHANGE;
+  amByName.forEach((m,k)=>{ const o=bmByName.get(k); if(!o) return; const x=moduleCells(o), y=moduleCells(m); if(moved(x,y)) out.cells.modules.push({before:o,after:m,from:x,to:y}); });
+  both.forEach((a,k)=>{ const b=B.get(k), x=(b.p&&b.p.cells)||0, y=(a.p&&a.p.cells)||0; if(moved(x,y)) out.cells.items.push({before:b,after:a,from:x,to:y}); });
+  const byDelta=(p,q)=>Math.abs(q.to-q.from)-Math.abs(p.to-p.from);
+  out.cells.modules.sort(byDelta); out.cells.items.sort(byDelta);
+  return out;
 }
 
 </script>
@@ -592,20 +669,21 @@ const LAYERS=['Data','Input','System','Calculation','Output','Other'];
 const LAYER_COLOR={Data:'#2fd3a7',Input:'#6c8cff',System:'#8b95ad',Calculation:'#ff7a59',Output:'#ff5fa2',Other:'#b38cff'};
 const LAYER_RANK={Data:0,Input:0,System:0,Calculation:1,Output:2};
 const SECTION_COLORS=['#6c8cff','#2fd3a7','#ff7a59','#ff5fa2','#f5b942','#b38cff','#4fc3f7','#9ccc65','#e57373','#a1887f','#90a4ae','#ffb74d'];
-const isDividerName=n=>/^\s*[-*=_#~]{2,}/.test(n)||/[-*=_#~]{3,}\s*$/.test(n);
 const tidySection=n=>{ const t=n.replace(/[-*=_#~]+/g,' ').replace(/\s+/g,' ').trim(); return t?t.charAt(0).toUpperCase()+t.slice(1).toLowerCase():'Unnamed section'; };
 
 const CAT_COLORS={
   fmt:{Number:'#6c8cff',Text:'#f5b942',Boolean:'#2fd3a7',List:'#b38cff',Date:'#ff7a59','Time period':'#ff5fa2','No data':'#5f6a85',Other:'#93a0bd'},
   sum:{None:'#5f6a85',Sum:'#6c8cff',Formula:'#ff6b6b',Average:'#2fd3a7',Any:'#f5b942',All:'#f5b942',Max:'#ff7a59',Min:'#ff7a59','Closing balance':'#b38cff','Opening balance':'#b38cff','First non-blank':'#4fc3f7','Last non-blank':'#4fc3f7',Ratio:'#ff5fa2'},
   ts:{'Not Applicable':'#5f6a85',Month:'#6c8cff',Quarter:'#2fd3a7',Year:'#ff7a59',Week:'#f5b942',Day:'#ff5fa2','Half-Year':'#b38cff'},
-  ver:{'Not Applicable':'#5f6a85',All:'#6c8cff',Subset:'#b38cff'}
+  ver:{'Not Applicable':'#5f6a85',All:'#6c8cff',Subset:'#b38cff'},
+  chg:{Added:'#2fd3a7',Changed:'#f5b942',Unchanged:'#93a0bd'}
 };
-const HL_NAMES={fmt:'Format',sum:'Summary method',ts:'Time scale',ver:'Versions',effort:'Calculation effort',cells:'Cell count',len:'Formula length'};
+const HL_NAMES={fmt:'Format',sum:'Summary method',ts:'Time scale',ver:'Versions',effort:'Calculation effort',cells:'Cell count',len:'Formula length',chg:'Changes since the older export'};
 const isHeat=a=>a==='effort'||a==='cells'||a==='len';
 function catOf(it,a){ const p=it.p||{};
   if(a==='fmt') return p.fmtType||'Unknown'; if(a==='sum') return p.sum||'Unknown'; if(a==='ts') return p.ts||'Unknown';
-  if(a==='ver') return !p.ver?'Unknown':(p.ver==='All'||p.ver==='Not Applicable')?p.ver:'Subset'; return ''; }
+  if(a==='ver') return !p.ver?'Unknown':(p.ver==='All'||p.ver==='Not Applicable')?p.ver:'Subset';
+  if(a==='chg') return (S.cmp&&S.cmp.status.get(it.id))||'Unchanged'; return ''; }
 function heatVal(it,a){ const p=it.p||{}; return a==='effort'?(p.effort||0):a==='cells'?Math.log10(1+(p.cells||0)):it.formula.length; }
 function heatColor(t){t=Math.max(0,Math.min(1,t));const [a,b,c]=T().heat;const mix=(x,y,k)=>x.map((v,i)=>Math.round(v+(y[i]-v)*k));const r=t<.6?mix(a,b,t/.6):mix(b,c,(t-.6)/.4);return `rgb(${r.join(',')})`;}
 function tint(col,k){ const p=c=>{ if(c.startsWith('rgb')) return c.match(/\d+/g).map(Number); const h=c.replace('#',''); return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16)); }; const a=p(col),b=T().base; return `rgb(${a.map((v,i)=>Math.round(b[i]+(v-b[i])*k)).join(',')})`; }
@@ -703,8 +781,8 @@ async function loadText(files){
     $('empty').style.display='none'; $('legend').style.display='flex'; $('zoom').style.display='flex'; $('nav').style.display='flex';
     $('srcNote').textContent=S.g.source==='rb'?"Lineage from Anaplan's Referenced By column":S.g.source==='mixed'?'Lineage from Referenced By and formula parsing':'Lineage from formula parsing';
     S.groupBy=S.g.hasSections&&S.groupBy==='section'?'section':'layer'; setSeg('groupSeg',S.groupBy); $('groupSeg').querySelector('[data-v="section"]').disabled=!S.g.hasSections;
-    S.hl=''; S.hlFilter=null; $('hl').value='';
-    go({level:'model'}); renderProfile(); S.insight={key:'refs',shown:50}; S.impact=null; renderInsights();
+    S.hl=''; S.hlFilter=null; $('hl').value=''; S.cmp=null; setChgOption(false); $('cmpBtn').disabled=false;
+    go({level:'model'}); renderProfile(); S.insight={key:'refs',shown:50}; S.impact=null; renderInsights(); renderChanges();
   }catch(e){ $('empty').style.display='flex'; $('err').textContent=e.message||String(e); }
   busy(false);
 }
@@ -1224,6 +1302,7 @@ function itemDetails(it){
    <div class="counts"><span class="u"><b>${fmt(f.up)}</b> upstream</span><span class="d"><b>${fmt(f.dn)}</b> downstream</span><span class="muted">full chain</span></div>
    ${S.g.hasMeta?`<div class="kv" style="margin-top:8px">${prop('Format',showFmt(p.fmt))}${prop('Summary',p.sum+(p.tsum&&p.tsum!==p.sum?' (time: '+p.tsum+')':''))}${prop('Time scale',p.ts)}${prop('Time range',showNames(p.tr,'t'))}${prop('Versions',showNames(p.ver,'v'))}${prop('Applies to',it.appliesTo&&it.appliesTo!=='-'?showLists(it.appliesTo):(m.meta.appliesTo?showLists(m.meta.appliesTo)+' (module)':''))}${p.cells?`<div>Cell count</div><div>${fmt(p.cells)}</div>`:''}${p.effort?`<div>Calc effort</div><div>${p.effort}%</div>`:''}${prop('Parent',showRef(p.parent,m))}${p.isSum==='true'?'<div>Is summary</div><div>Yes</div>':''}${prop('Style',p.style)}${prop('Formula scope',p.scope&&p.scope!=='All Versions'?showNames(p.scope,'v'):'')}${prop('Code',showHidden(p.code))}${prop('Data tags',showHidden(p.tags))}${prop('Read access (DCA)',showRef(p.rd,m))}${prop('Write access (DCA)',showRef(p.wr,m))}</div>`:''}
    <h3>Formula</h3>${it.formula?(isAnon()?'<p class="muted">Hidden while anonymised.</p>':`<pre class="formula">${esc(it.formula)}</pre>`):'<p class="muted" style="margin:0">No formula (input or data line item).</p>'}
+   ${changeSection(it)}
    ${p.notes&&!isAnon()?`<h3>Notes</h3><p style="margin:0;font-size:13px">${esc(p.notes)}</p>`:''}
    <h3>Inputs (${fmt(it.ins.length)})</h3>${connGroups(it.ins,'u')||'<p class="muted" style="margin:0">None. This is a source (input or data).</p>'}
    <h3>Used by (${fmt(it.outs.length)})</h3>${connGroups(it.outs,'d')||'<p class="muted" style="margin:0">Nothing references this line item.</p>'}
@@ -1254,22 +1333,10 @@ function renderProfile(){
     pairs.sort((x,y)=>y[2]-x[2]);
     checks.push({t:'Flows against DISCO',sev:'high',help:'A later layer feeds an earlier one: outputs feeding calculations or inputs, or calculations feeding data, input or system modules.',rows:pairs.map(([a,b,w])=>({go:'m:'+b,l:modLabel(mod(a))+' → '+modLabel(mod(b)),r:mod(a).layer+' → '+mod(b).layer+' · '+w+' ref'+(w===1?'':'s')}))});
   }
-  if(g.hasMeta){
-    const nonNum=items.filter(i=>['Text','List','Date','Time period','No data'].includes(i.p.fmtType)&&i.p.sum&&i.p.sum!=='None');
-    checks.push({t:'Non-numeric line items with a summary method',sev:'med',help:'Text, list, date and time period line items rarely need a summary. Setting it to None saves memory and calculation.',rows:nonNum.map(i=>({go:i.id,l:itemLabel(i),r:modLabel(mod(i.mk))+' · '+i.p.fmtType+' · '+i.p.sum}))});
-    const boolSum=items.filter(i=>i.p.fmtType==='Boolean'&&i.p.sum&&i.p.sum!=='None');
-    checks.push({t:'Boolean line items with a summary method',sev:'low',help:'Any/All summaries on booleans are sometimes intended, but often left on by default. Check whether the totals are used.',rows:boolSum.map(i=>({go:i.id,l:itemLabel(i),r:modLabel(mod(i.mk))+' · '+i.p.sum}))});
-    const fsum=items.filter(i=>i.p.sum==='Formula'||i.p.tsum==='Formula');
-    checks.push({t:'Summary method "Formula"',sev:'med',help:'Formula summaries recalculate the formula at every aggregate level, which can be expensive on large hierarchies.',rows:fsum.map(i=>({go:i.id,l:itemLabel(i),r:modLabel(mod(i.mk))}))});
-  }
   if(items.some(i=>i.p.effort)){ const top=items.filter(i=>i.p.effort>0).sort((a,b)=>b.p.effort-a.p.effort).slice(0,25);
     checks.push({t:'Highest calculation effort',sev:'info',help:"Anaplan's own calculation effort per line item. The top of this list is where optimisation pays off.",rows:top.map(i=>({go:i.id,l:itemLabel(i),r:i.p.effort+'% · '+modLabel(mod(i.mk))}))}); }
   if(items.some(i=>i.p.cells)){ const top=items.filter(i=>i.p.cells>0).sort((a,b)=>b.p.cells-a.p.cells).slice(0,25);
     checks.push({t:'Largest line items by cell count',sev:'info',help:'Big line items drive model size. Check their dimensionality (Applies To, time scale, versions).',rows:top.map(i=>({go:i.id,l:itemLabel(i),r:short(i.p.cells)+' cells · '+modLabel(mod(i.mk))}))}); }
-  const unused=items.filter(i=>i.outs.length===0&&mod(i.mk).layer!=='Output'&&i.p.fmtType!=='No data');
-  checks.push({t:'Not referenced by anything',sev:'low',help:'Line items outside output modules that nothing references. Some may be shown on pages or exported, so check before deleting.',rows:unused.map(i=>({go:i.id,l:itemLabel(i),r:modLabel(mod(i.mk))}))});
-  const longF=items.filter(i=>i.formula.length>300).sort((a,b)=>b.formula.length-a.formula.length);
-  checks.push({t:'Very long formulas (300+ characters)',sev:'low',help:'Long formulas are harder to audit and often hide repeated logic. Consider splitting them into steps.',rows:longF.map(i=>({go:i.id,l:itemLabel(i),r:fmt(i.formula.length)+' chars · '+modLabel(mod(i.mk))}))});
   const empty=g.modList.filter(m=>m.size===0);
   checks.push({t:'Empty modules',sev:'low',help:'Modules with no line items (dividers are excluded).',rows:empty.map(m=>({go:'m:'+m.key,l:modLabel(m),r:m.layer}))});
   if(!g.checks) g.checks=architectChecks({items:g.items,byName:g.byName,edges:g.edges}); /* names are resolved at display time, so this survives Anonymise */
@@ -1326,6 +1393,113 @@ function renderInsights(){
     setTimeout(()=>{ if($('insCopy')) $('insCopy').textContent='Copy CSV'; },1500); };
 }
 
+/* ---------- Compare with an older export ----------
+   The loaded model is the newer one. Things that exist only in the older export have no place on the
+   map, so they are listed by name (or a neutral label while Anonymise is on). */
+async function loadCompare(fileList){
+  if(!S.g) return;
+  const files=await Promise.all([...fileList].map(f=>f.text().then(text=>({name:f.name,text}))));
+  busy(true,'Reading the older export'); await nextFrame();
+  try{
+    let res; try{ res=await parseInWorker(files); }catch(e){ if(e&&e.fallback) res=await parseOnMain(files); else throw e; }
+    busy(true,'Comparing the two exports'); await nextFrame();
+    const before={items:res.items,byName:indexItems(res.items,res.modules),edges:res.edges};
+    if(!S.g.checks) S.g.checks=architectChecks({items:S.g.items,byName:S.g.byName,edges:S.g.edges});
+    const r=compareModels(before,{items:S.g.items,byName:S.g.byName,edges:S.g.edges,checks:S.g.checks});
+    const status=new Map(); r.items.added.forEach(it=>status.set(it.id,'Added')); r.items.changed.forEach(c=>status.set(c.after.id,'Changed'));
+    const now=new Map(S.g.items.map(it=>[itemKey(it),it]));
+    S.cmp={r,status,files:files.map(f=>f.name),changed:new Map(r.items.changed.map(c=>[c.after.id,c])),now:it=>now.get(itemKey(it)),
+      removedNo:new Map(r.items.removed.map((it,i)=>[it,i+1])),removedModNo:new Map(r.modules.removed.map((m,i)=>[norm(m.name),i+1]))};
+    setChgOption(true); S.hl='chg'; S.hlFilter=null; $('hl').value='chg';
+    render(); renderChanges(); switchTab('changes');
+  }catch(e){ S.cmp=null; renderChanges(e.message||String(e)); switchTab('changes'); }
+  busy(false);
+}
+/* the Colour by option is only usable while a comparison is loaded */
+function setChgOption(on){ const o=$('hl').querySelector('[value="chg"]'); o.disabled=!on; o.textContent=on?'Changes':'Changes (compare first)'; }
+function clearCompare(){
+  S.cmp=null; setChgOption(false);
+  if(S.hl==='chg'){ S.hl=''; S.hlFilter=null; $('hl').value=''; }
+  if(S.g) render(); renderChanges();
+}
+/* labels for line items and modules that may exist only in the older export */
+function oldModLabel(name){ const m=S.g.byName.get(norm(name)); if(m) return modLabel(m); return isAnon()?'Removed module '+(S.cmp.removedModNo.get(norm(name))||''):name; }
+function oldItemLabel(it){ const now=S.cmp.now(it); if(now) return itemLabel(now); return isAnon()?'Removed line item '+(S.cmp.removedNo.get(it)||''):it.name; }
+/* an old or new value of a changed field, anonymised like the rest of the page */
+function showDiff(d,v){ if(!v) return '—'; if(!isAnon()) return v;
+  if(d.key==='formula'||d.key==='rd'||d.key==='wr') return '•••';
+  if(d.key==='fmt') return showFmt(v); if(d.key==='applies') return showLists(v); if(d.key==='ver') return showNames(v,'v'); return v; }
+function changeSection(it){
+  if(!S.cmp) return ''; const st=S.cmp.status.get(it.id);
+  if(st==='Added') return '<h3>Since the older export</h3><p class="d" style="margin:0;font-size:13px">New line item.</p>';
+  const c=S.cmp.changed.get(it.id); if(!c) return '';
+  return '<h3>Changed since the older export</h3>'+c.diffs.map(d=>d.key==='formula'&&!isAnon()
+    ?`<div class="note" style="margin:6px 0 4px">Formula before</div><pre class="formula">${esc(d.from||'(none)')}</pre>`
+    :`<div class="kv"><div>${esc(d.label)}</div><div>${esc(showDiff(d,d.from))} → ${esc(showDiff(d,d.to))}</div></div>`).join('');
+}
+function changeRows(){ /* every change as [change, what, module, line item, details], shared by the panel's CSV copy */
+  const r=S.cmp.r, out=[], pct=(a,b)=>(b>=a?'+':'−')+Math.round(Math.abs(b-a)/a*100)+'%', det=f=>f.detail?(f.sensitive&&isAnon()?'•••':f.detail):'';
+  const link=([s,t])=>oldItemLabel(s)+' → '+oldItemLabel(t);
+  r.items.changed.forEach(c=>out.push(['Changed','Line item',modLabel(mod(c.after.mk)),itemLabel(c.after),c.diffs.map(d=>d.label+': '+showDiff(d,d.from)+' → '+showDiff(d,d.to)).join('; ')]));
+  r.items.added.forEach(it=>out.push(['Added','Line item',modLabel(mod(it.mk)),itemLabel(it),'']));
+  r.items.removed.forEach(it=>out.push(['Removed','Line item',oldModLabel(it.module),oldItemLabel(it),'']));
+  r.modules.added.forEach(m=>out.push(['Added','Module',modLabel(m),'','']));
+  r.modules.removed.forEach(m=>out.push(['Removed','Module',oldModLabel(m.name),'','']));
+  r.links.added.forEach(x=>out.push(['Added','Lineage link','',link(x),'']));
+  r.links.removed.forEach(x=>out.push(['Removed','Lineage link','',link(x),'']));
+  r.findings.added.forEach(f=>out.push(['New','Check finding',modLabel(mod(f.it.mk)),itemLabel(f.it),f.check+(det(f)?' · '+det(f):'')]));
+  r.findings.resolved.forEach(f=>{ const it=S.cmp.now(f.it); out.push(['Resolved','Check finding',modLabel(mod(it.mk)),itemLabel(it),f.check]); });
+  r.cells.modules.forEach(c=>out.push(['Changed','Module cell count',modLabel(c.after),'',fmt(c.from)+' → '+fmt(c.to)+' ('+pct(c.from,c.to)+')']));
+  r.cells.items.forEach(c=>out.push(['Changed','Line item cell count',modLabel(mod(c.after.mk)),itemLabel(c.after),fmt(c.from)+' → '+fmt(c.to)+' ('+pct(c.from,c.to)+')']));
+  return out;
+}
+function renderChanges(err){
+  const el=$('changes');
+  if(!S.g){ el.innerHTML='<p class="muted">Load a model, then compare it with an older export.</p>'; return; }
+  if(!S.cmp){
+    el.innerHTML=`<div class="title">Compare with an older export</div>
+     <p style="margin:6px 0 10px;font-size:13px">Load the newer export as the model, then compare it with an older export of the same model. You'll see line items and modules added, removed or changed, lineage links added or removed, new and resolved check findings, and cell counts that moved by 10% or more.</p>
+     <p class="note" style="margin:0 0 12px">The older file is read in this browser too. Nothing is uploaded.</p>
+     <button class="primary" id="cmpBtn2">Choose the older export…</button>${err?`<p class="err" style="margin-top:10px">${esc(err)}</p>`:''}`;
+    $('cmpBtn2').onclick=()=>$('cmpFile').click(); return;
+  }
+  const r=S.cmp.r, n=a=>fmt(a.length), pct=(a,b)=>(b>=a?'+':'−')+Math.round(Math.abs(b-a)/a*100)+'%';
+  const det=f=>f.detail?(f.sensitive&&isAnon()?'•••':f.detail):'';
+  const grp=(title,cls,rows)=>`<details class="cg check"${rows.length&&rows.length<=8?' open':''}><summary><span>${esc(title)}</span><span class="n ${cls}">${fmt(rows.length)}</span></summary>${rows.slice(0,200).map(x=>`<div class="ci"${x.go?` data-go="${esc(x.go)}"`:' style="cursor:default"'}><span>${esc(x.l)}</span><small>${esc(x.r||'')}</small></div>`).join('')}${rows.length>200?`<div class="ci muted">…${fmt(rows.length-200)} more (Copy CSV has them all)</div>`:''}</details>`;
+  const itemRow=(it,extra)=>({go:it.id,l:itemLabel(it),r:modLabel(mod(it.mk))+(extra?' · '+extra:'')});
+  const linkRow=([s,t])=>{ const b=S.cmp.now(t); return {go:b?b.id:'',l:oldItemLabel(s)+' → '+oldItemLabel(t),r:b?modLabel(mod(b.mk)):''}; };
+  el.innerHTML=`<div class="stats">
+     <div class="stat"><b><span class="d">+${n(r.items.added)}</span> <span class="bad">−${n(r.items.removed)}</span> <span class="u">~${n(r.items.changed)}</span></b><span>Line items added, removed, changed</span></div>
+     <div class="stat"><b><span class="d">+${n(r.modules.added)}</span> <span class="bad">−${n(r.modules.removed)}</span></b><span>Modules added, removed</span></div>
+     <div class="stat"><b><span class="d">+${n(r.links.added)}</span> <span class="bad">−${n(r.links.removed)}</span></b><span>Lineage links added, removed</span></div>
+     <div class="stat"><b><span class="bad">${n(r.findings.added)}</span> <span class="muted">/</span> <span class="d">${n(r.findings.resolved)}</span></b><span>Check findings new / resolved</span></div></div>
+   <p class="note" style="margin-top:-4px">The loaded model compared with ${isAnon()?'the older export':'<b>'+esc(S.cmp.files.join(', '))+'</b>'}. Line items are matched by module and name, so a renamed one shows as removed and added. <b>Colour by: Changes</b> marks them on the map.</p>
+   <div class="ins-head"><button id="chgCopy" title="Copy every change as CSV">Copy CSV</button><button id="chgClear">Clear comparison</button></div>
+   <h3>Line items</h3>
+   ${grp('Changed','u',r.items.changed.map(c=>itemRow(c.after,c.diffs.map(d=>d.label).join(', '))))}
+   ${grp('Added','d',r.items.added.map(it=>itemRow(it)))}
+   ${grp('Removed','bad',r.items.removed.map(it=>({l:oldItemLabel(it),r:oldModLabel(it.module)})))}
+   <h3>Modules</h3>
+   ${grp('Added','d',r.modules.added.map(m=>({go:'m:'+m.key,l:modLabel(m),r:m.layer})))}
+   ${grp('Removed','bad',r.modules.removed.map(m=>({l:oldModLabel(m.name),r:layerOf(m.name)})))}
+   <h3>Lineage</h3>
+   ${grp('Links added','d',r.links.added.map(linkRow))}
+   ${grp('Links removed','bad',r.links.removed.map(linkRow))}
+   <h3>Architect checks</h3>
+   ${grp('New findings','bad',r.findings.added.map(f=>itemRow(f.it,f.check+(det(f)?' · '+det(f):''))))}
+   ${grp('Resolved findings','d',r.findings.resolved.map(f=>itemRow(S.cmp.now(f.it),f.check)))}
+   <h3>Cell counts that moved 10% or more</h3>
+   ${grp('Modules','u',r.cells.modules.map(c=>({go:'m:'+c.after.key,l:modLabel(c.after),r:short(c.from)+' → '+short(c.to)+' ('+pct(c.from,c.to)+')'})))}
+   ${grp('Line items','u',r.cells.items.map(c=>itemRow(c.after,short(c.from)+' → '+short(c.to)+' ('+pct(c.from,c.to)+')')))}`;
+  $('chgClear').onclick=clearCompare;
+  $('chgCopy').onclick=async()=>{ const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
+    const csv=[['Change','What','Module','Line item','Details']].concat(changeRows()).map(r=>r.map(q).join(',')).join('\n');
+    try{ await navigator.clipboard.writeText(csv); $('chgCopy').textContent='Copied'; }catch(e){ $('chgCopy').textContent="Couldn't copy"; }
+    setTimeout(()=>{ if($('chgCopy')) $('chgCopy').textContent='Copy CSV'; },1500); };
+}
+$('cmpBtn').onclick=()=>$('cmpFile').click();
+$('cmpFile').addEventListener('change',e=>{ if(e.target.files.length) loadCompare(e.target.files); e.target.value=''; });
+
 /* ---------- Search ---------- */
 function buildSearch(){ const idx=[]; S.g.modList.forEach(m=>{ const l=modLabel(m); idx.push({id:'m:'+m.key,label:l,low:l.toLowerCase(),sub:'Module · '+m.layer}); });
   for(const it of S.g.items){ const l=itemLabel(it); idx.push({id:it.id,label:l,low:l.toLowerCase(),sub:modLabel(mod(it.mk))}); } S.search=idx; }
@@ -1347,14 +1521,14 @@ function setSeg(id,v){ document.querySelectorAll('#'+id+' button').forEach(b=>b.
 document.querySelectorAll('#groupSeg button').forEach(b=>b.onclick=()=>{ if(!S.g||b.disabled) return; S.groupBy=b.dataset.v; setSeg('groupSeg',S.groupBy); const n=S.nav; if(n.level==='lane') go({level:'model'}); else { if(n.mk) n.lane=laneOf(mod(n.mk)); render(); } });
 $('hl').onchange=()=>{ S.hl=$('hl').value; S.hlFilter=null; if(S.g) render(); };
 $('linkStyle').onchange=()=>{ if(cy) cy.style(styles()); };
-$('anon').onchange=()=>{ if(!S.g) return; $('search').value=''; $('results').style.display='none'; buildSearch(); render(); renderProfile(); renderInsights(); };
+$('anon').onchange=()=>{ if(!S.g) return; $('search').value=''; $('results').style.display='none'; buildSearch(); render(); renderProfile(); renderInsights(); renderChanges(); };
 $('zin').onclick=()=>$('sheet').style.display==='block'?setZoom(SZ*1.15):cy&&cy.animate({zoom:{level:cy.zoom()*1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
 $('zout').onclick=()=>$('sheet').style.display==='block'?setZoom(SZ/1.15):cy&&cy.animate({zoom:{level:cy.zoom()/1.3,renderedPosition:{x:cy.width()/2,y:cy.height()/2}}},{duration:200});
 $('zfit').onclick=()=>$('sheet').style.display==='block'?(()=>{ const w=$('sheet').querySelector('.sh-wrap'); setZoom(1); setZoom(Math.min(1,$('sheet').clientWidth/w.scrollWidth)); })():cy&&cy.animate({fit:{eles:cy.elements(),padding:40}},{duration:300});
 $('pngBtn').onclick=()=>{ if($('sheet').style.display==='block'){ $('pngImg').removeAttribute('src'); $('pngImg').alt=''; $('modal').querySelector('.note').textContent='Image export works on the map views (Model, Layer and Module lineage). For blueprint tables, use your browser\'s screenshot tool or Print to PDF.'; $('modal').style.display='flex'; return; } $('modal').querySelector('.note').textContent='Right-click or long-press the image to save it.'; if(!cy||!cy.nodes().length) return; $('pngImg').src=cy.png({full:true,scale:cy.nodes().length>600?1:2,bg:T().bg,maxWidth:5000,maxHeight:5000}); $('modal').style.display='flex'; };
 $('modalClose').onclick=()=>$('modal').style.display='none';
 $('modal').onclick=e=>{ if(e.target.id==='modal') $('modal').style.display='none'; };
-function switchTab(t){ document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t)); ['details','profile','insights'].forEach(id=>$(id).style.display=t===id?'block':'none'); }
+function switchTab(t){ document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t)); ['details','profile','insights','changes'].forEach(id=>$(id).style.display=t===id?'block':'none'); }
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>switchTab(b.dataset.t));
 document.addEventListener('keydown',e=>{ if(e.key==='Backspace'&&!/input|select|textarea/i.test(e.target.tagName)&&S.g&&S.nav.level!=='model'){ e.preventDefault(); up(); } });
 
