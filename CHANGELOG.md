@@ -2,7 +2,7 @@
 
 All notable changes to this project are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] - 2026-11-27
 
 ### Added
 
@@ -41,4 +41,5 @@ First release.
 
 - Cytoscape.js is pinned to 3.30.2 and loaded with a Subresource Integrity hash. The page shows a clear message if it cannot load.
 
+[1.1.0]: https://github.com/karankochhar123/anaplan-lineage/releases/tag/v1.1.0
 [1.0.0]: https://github.com/karankochhar123/anaplan-lineage/releases/tag/v1.0.0
